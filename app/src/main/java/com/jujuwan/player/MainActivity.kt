@@ -104,6 +104,7 @@ fun JujuWanMainApp() {
     }
     var playingUrl by remember { mutableStateOf("") }
     var playingTitle by remember { mutableStateOf("") }
+    var playingIsLive by remember { mutableStateOf(false) }
 
     var currentDateTime by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
@@ -243,6 +244,7 @@ fun JujuWanMainApp() {
                     onPlayFullScreen = { title, url ->
                         playingTitle = title
                         playingUrl = url
+                        playingIsLive = (currentScreen == "LIVE")
                         currentScreen = "PLAYER"
                     }
                 )
@@ -251,6 +253,7 @@ fun JujuWanMainApp() {
             "PLAYER" -> FullScreenVideoPlayer(
                 title = playingTitle,
                 url = playingUrl,
+                isLive = playingIsLive,
                 onBack = { currentScreen = "HOME" }
             )
         }
@@ -601,13 +604,11 @@ fun MediaBrowserScreen(
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
-        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-    }
-}
-
-@Composable
-fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
+        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizo@Composable
+fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
+    var showTopBar by remember { mutableStateOf(true) }
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -616,24 +617,49 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
         }
     }
 
+    LaunchedEffect(showTopBar) {
+        if (showTopBar) {
+            delay(3500)
+            showTopBar = false
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose { exoPlayer.release() }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable { showTopBar = !showTopBar }
+    ) {
         AndroidView(
-            factory = { PlayerView(it).apply { player = exoPlayer } },
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = !isLive // Barre de progression uniquement pour Films et Series (VOD)
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopStart),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.8f))) {
-                Text("← Quitter", color = Color.White)
+        if (showTopBar || !isLive) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.TopStart),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.85f))) {
+                    Text("← Quitter", color = Color.White, fontSize = 12.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
-            Spacer(Modifier.width(12.dp))
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+    }
+}
+
+d, fontSize = 12.sp)
         }
     }
 }
