@@ -36,6 +36,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,6 +52,8 @@ val CardDark = Color(0xFF141322)
 val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
+
+val sharedHttpClient = OkHttpClient.Builder().build()
 
 object ServerCache {
     var liveCats: List<CategoryItem> = emptyList()
@@ -147,25 +150,30 @@ fun JujuWanMainApp() {
 
         LaunchedEffect(activeAccount) {
             val acc = activeAccount
-            if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
+            val key = "${acc?.url}_${acc?.user}"
+            if (acc != null && ServerCache.loadedForUrl != key) {
                 isPreloading = true
-                liveStatus = 1; movieStatus = 0; seriesStatus = 0
-                ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
-                ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
-                liveStatus = 2
-
-                movieStatus = 1
-                ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
-                ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
-                movieStatus = 2
-
-                seriesStatus = 1
-                ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
-                ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
-                seriesStatus = 2
-
-                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
-                delay(1000)
+                liveStatus = 1; movieStatus = 1; seriesStatus = 1
+                kotlinx.coroutines.coroutineScope {
+                    val liveJob = async {
+                        ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
+                        ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
+                        liveStatus = 2
+                    }
+                    val movieJob = async {
+                        ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
+                        ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
+                        movieStatus = 2
+                    }
+                    val seriesJob = async {
+                        ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
+                        ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
+                        seriesStatus = 2
+                    }
+                    liveJob.await(); movieJob.await(); seriesJob.await()
+                }
+                ServerCache.loadedForUrl = key
+                delay(600)
                 isPreloading = false
             }
         }
@@ -633,7 +641,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
-        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = sharedHttpClient.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
@@ -647,7 +655,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
         val action = when (mode) { "LIVE" -> "get_live_streams"; "MOVIES" -> "get_vod_streams"; else -> "get_series" }
         val catParam = if (catId != null) "&category_id=$catId" else ""
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action$catParam"
-        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = sharedHttpClient.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
