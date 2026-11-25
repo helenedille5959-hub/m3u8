@@ -549,9 +549,8 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
                 "LIVE" -> "${acc.url}/live/${acc.user}/${acc.pass}/$id.m3u8"
                 "MOVIES" -> "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext"
 
-
-
-
+    } catch (e: Exception) { emptyList() }
+}
 
 fun saveAccounts(prefs: android.content.SharedPreferences, list: List<PlaylistAccount>) {
     val arr = JSONArray()
