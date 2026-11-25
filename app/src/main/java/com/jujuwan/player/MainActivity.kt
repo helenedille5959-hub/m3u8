@@ -604,7 +604,8 @@ fun MediaBrowserScreen(
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
-        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizo@Composable
+        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizo@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
 fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     var showTopBar by remember { mutableStateOf(true) }
