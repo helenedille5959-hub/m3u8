@@ -141,26 +141,31 @@ fun JujuWanMainApp() {
         }
 
         var isPreloading by remember { mutableStateOf(false) }
-        var loadingStep by remember { mutableStateOf("Connexion au serveur...") }
-        val preloadScope = rememberCoroutineScope()
+        var liveStatus by remember { mutableStateOf(0) } // 0=attente, 1=en cours, 2=OK
+        var movieStatus by remember { mutableStateOf(0) }
+        var seriesStatus by remember { mutableStateOf(0) }
 
         LaunchedEffect(activeAccount) {
             val acc = activeAccount
             if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
                 isPreloading = true
-                loadingStep = "Chargement des chaînes en direct..."
+                liveStatus = 1; movieStatus = 0; seriesStatus = 0
                 ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
                 ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
+                liveStatus = 2
 
-                loadingStep = "Chargement du catalogue Films..."
+                movieStatus = 1
                 ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
                 ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
+                movieStatus = 2
 
-                loadingStep = "Chargement du catalogue Séries..."
+                seriesStatus = 1
                 ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
                 ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
+                seriesStatus = 2
 
                 ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
+                delay(1000)
                 isPreloading = false
             }
         }
@@ -171,16 +176,24 @@ fun JujuWanMainApp() {
                     shape = RoundedCornerShape(16.dp),
                     color = CardDark,
                     border = BorderStroke(2.dp, NeonPurple),
-                    modifier = Modifier.padding(24.dp)
+                    modifier = Modifier.padding(20.dp).fillMaxWidth(0.75f)
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.padding(22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        CircularProgressIndicator(color = NeonPurpleGlow)
-                        Text("Préparation de Juju Wan", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(loadingStep, color = NeonPurpleGlow, fontSize = 13.sp)
+                        Text(
+                            "Le contenu de votre serveur charge pour la première fois, cela va prendre un certain moment...",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        StepCheckRow("Chargement des chaînes en direct", "Chaînes chargées", liveStatus)
+                        StepCheckRow("Chargement des films", "Films chargés", movieStatus)
+                        StepCheckRow("Chargement des séries", "Séries chargées", seriesStatus)
                     }
                 }
             }
@@ -681,4 +694,31 @@ fun CompactField(value: String, onChange: (String) -> Unit, hint: String, isPass
         visualTransformation = if (isPass) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().height(46.dp)
     )
+}
+
+@Composable
+fun StepCheckRow(loadingText: String, doneText: String, status: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            when (status) {
+                1 -> CircularProgressIndicator(color = NeonPurpleGlow, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                2 -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4ADE80), modifier = Modifier.size(18.dp))
+                else -> Icon(Icons.Default.RadioButtonUnchecked, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = if (status == 2) doneText else loadingText,
+                color = if (status == 2) Color(0xFF4ADE80) else if (status == 1) Color.White else Color.Gray,
+                fontSize = 13.sp,
+                fontWeight = if (status >= 1) FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+        if (status == 2) {
+            Text("OK", color = Color(0xFF4ADE80), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        }
+    }
 }
