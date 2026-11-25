@@ -36,7 +36,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,8 +51,6 @@ val CardDark = Color(0xFF141322)
 val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
-
-val sharedHttpClient = OkHttpClient.Builder().build()
 
 object ServerCache {
     var liveCats: List<CategoryItem> = emptyList()
@@ -104,7 +101,6 @@ fun JujuWanMainApp() {
     }
     var playingUrl by remember { mutableStateOf("") }
     var playingTitle by remember { mutableStateOf("") }
-    var playingIsLive by remember { mutableStateOf(false) }
 
     var currentDateTime by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
@@ -151,30 +147,25 @@ fun JujuWanMainApp() {
 
         LaunchedEffect(activeAccount) {
             val acc = activeAccount
-            val key = "${acc?.url}_${acc?.user}"
-            if (acc != null && ServerCache.loadedForUrl != key) {
+            if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
                 isPreloading = true
-                liveStatus = 1; movieStatus = 1; seriesStatus = 1
-                kotlinx.coroutines.coroutineScope {
-                    val liveJob = async {
-                        ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
-                        ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
-                        liveStatus = 2
-                    }
-                    val movieJob = async {
-                        ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
-                        ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
-                        movieStatus = 2
-                    }
-                    val seriesJob = async {
-                        ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
-                        ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
-                        seriesStatus = 2
-                    }
-                    liveJob.await(); movieJob.await(); seriesJob.await()
-                }
-                ServerCache.loadedForUrl = key
-                delay(600)
+                liveStatus = 1; movieStatus = 0; seriesStatus = 0
+                ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
+                ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
+                liveStatus = 2
+
+                movieStatus = 1
+                ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
+                ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
+                movieStatus = 2
+
+                seriesStatus = 1
+                ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
+                ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
+                seriesStatus = 2
+
+                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
+                delay(1000)
                 isPreloading = false
             }
         }
@@ -244,7 +235,6 @@ fun JujuWanMainApp() {
                     onPlayFullScreen = { title, url ->
                         playingTitle = title
                         playingUrl = url
-                        playingIsLive = (currentScreen == "LIVE")
                         currentScreen = "PLAYER"
                     }
                 )
@@ -253,7 +243,6 @@ fun JujuWanMainApp() {
             "PLAYER" -> FullScreenVideoPlayer(
                 title = playingTitle,
                 url = playingUrl,
-                isLive = playingIsLive,
                 onBack = { currentScreen = "HOME" }
             )
         }
@@ -604,12 +593,13 @@ fun MediaBrowserScreen(
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
-        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizo@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@Composable
-fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: () -> Unit) {
-    val context = LocalContext.current
-    var showTopBar by remember { mutableStateOf(true) }
+        Text(label, color = NeonPurpleGlow, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+    }
+}
 
+@Composable
+fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
+    val context = LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -618,44 +608,24 @@ fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: (
         }
     }
 
-    LaunchedEffect(showTopBar) {
-        if (showTopBar) {
-            delay(3500)
-            showTopBar = false
-        }
-    }
-
     DisposableEffect(Unit) {
         onDispose { exoPlayer.release() }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .clickable { showTopBar = !showTopBar }
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = !isLive
-                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                }
-            },
+            factory = { PlayerView(it).apply { player = exoPlayer; useController = (playingUrl.endsWith(".m3u8") == false) } },
             modifier = Modifier.fillMaxSize()
         )
-        if (showTopBar || !isLive) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.TopStart),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.85f))) {
-                    Text("← Quitter", color = Color.White, fontSize = 12.sp)
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.8f))) {
+                Text("← Quitter", color = Color.White)
             }
+            Spacer(Modifier.width(12.dp))
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
 }
@@ -663,7 +633,7 @@ fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: (
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
-        val res = sharedHttpClient.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
@@ -677,7 +647,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
         val action = when (mode) { "LIVE" -> "get_live_streams"; "MOVIES" -> "get_vod_streams"; else -> "get_series" }
         val catParam = if (catId != null) "&category_id=$catId" else ""
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action$catParam"
-        val res = sharedHttpClient.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
