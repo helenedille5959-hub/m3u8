@@ -550,6 +550,25 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
                 "MOVIES" -> "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext"
 
 
-gradle assembleDebug
 
 
+
+fun saveAccounts(prefs: android.content.SharedPreferences, list: List<PlaylistAccount>) {
+    val arr = JSONArray()
+    list.forEach {
+        arr.put(JSONObject().apply {
+            put("name", it.name); put("url", it.url); put("user", it.user); put("pass", it.pass)
+        })
+    }
+    prefs.edit().putString("saved_playlists", arr.toString()).apply()
+}
+
+fun loadSavedAccounts(prefs: android.content.SharedPreferences): List<PlaylistAccount> {
+    return try {
+        val arr = JSONArray(prefs.getString("saved_playlists", "[]"))
+        (0 until arr.length()).map {
+            val o = arr.getJSONObject(it)
+            PlaylistAccount(o.getString("name"), o.getString("url"), o.getString("user"), o.getString("pass"))
+        }
+    } catch (e: Exception) { emptyList() }
+}
