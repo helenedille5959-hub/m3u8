@@ -9,6 +9,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -257,41 +259,35 @@ fun PlaylistManagerScreen(
     var pass by remember { mutableStateOf("") }
     var savedList by remember { mutableStateOf(loadSavedAccounts(prefs)) }
 
-    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Colonne gauche : 4 cases fines + boutons Retour et Valider bien visibles
         Surface(
             modifier = Modifier.weight(1.4f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             color = CardDark,
-            border = BorderStroke(2.dp, NeonPurple)
+            border = BorderStroke(1.5.dp, NeonPurple)
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    label = { Text("Nom de la playlist (nommé comme vous le souhaitez)") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = url, onValueChange = { url = it },
-                    label = { Text("URL du serveur (http://...)") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = user, onValueChange = { user = it },
-                    label = { Text("Nom d'utilisateur") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = pass, onValueChange = { pass = it },
-                    label = { Text("Mot de passe") },
-                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, NeonPurple)) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Retour", color = Color.White)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+
+                SlimInputBox(name, { name = it }, "Nom de la playlist (nommé comme vous le souhaitez)")
+                SlimInputBox(url, { url = it }, "URL du serveur (http://...)")
+                SlimInputBox(user, { user = it }, "Nom d'utilisateur")
+                SlimInputBox(pass, { pass = it }, "Mot de passe", isPassword = true)
+
+                Row(modifier = Modifier.fillMaxWidth().height(36.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = onBack,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentPadding = PaddingValues(0.dp),
+                        border = BorderStroke(1.dp, NeonPurple)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Retour", color = Color.White, fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
@@ -304,50 +300,83 @@ fun PlaylistManagerScreen(
                                 onSelectAccount(newAcc)
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f).fillMaxHeight(),
+                        contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
                     ) {
-                        Text("Se connecter", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Valider & Connecter", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
+        // Colonne droite : Mes listes enregistrées
         Surface(
             modifier = Modifier.weight(1f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             color = CardDark,
-            border = BorderStroke(2.dp, NeonPurple)
+            border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("Mes listes enregistrées", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Mes listes enregistrées", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(savedList) { item ->
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = BgDark,
                             border = BorderStroke(1.dp, NeonPurple),
                             modifier = Modifier.fillMaxWidth().clickable { onSelectAccount(item) }
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                IconButton(onClick = {
-                                    val updated = savedList.filter { it != item }
-                                    saveAccounts(prefs, updated)
-                                    savedList = updated
-                                }) {
-                                    Icon(Icons.Default.Delete, null, tint = NeonPurpleGlow)
+                                Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                IconButton(
+                                    onClick = {
+                                        val updated = savedList.filter { it != item }
+                                        saveAccounts(prefs, updated)
+                                        savedList = updated
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SlimInputBox(value: String, onValueChange: (String) -> Unit, placeholder: String, isPassword: Boolean = false) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = BgDark,
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.7f)),
+        modifier = Modifier.fillMaxWidth().height(34.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (value.isEmpty()) {
+                Text(placeholder, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                cursorBrush = SolidColor(NeonPurpleGlow),
+                visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
