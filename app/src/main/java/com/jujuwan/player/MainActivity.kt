@@ -639,7 +639,7 @@ fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: (
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
-                    useController = !isLive // Barre de progression uniquement pour Films et Series (VOD)
+                    useController = !isLive
                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 }
             },
@@ -656,11 +656,6 @@ fun FullScreenVideoPlayer(title: String, url: String, isLive: Boolean, onBack: (
                 Spacer(Modifier.width(12.dp))
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
-        }
-    }
-}
-
-d, fontSize = 12.sp)
         }
     }
 }
