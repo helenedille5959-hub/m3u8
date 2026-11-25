@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://android.com">
+<manifest xmlns:android="http://android.com"
+    xmlns:tools="http://android.com">
+
     <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:label="Juju Wan"
         android:theme="@android:style/Theme.Material.NoActionBar"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        tools:replace="android:label,android:theme">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -16,4 +20,5 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
