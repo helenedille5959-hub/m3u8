@@ -51,6 +51,17 @@ val CardDark = Color(0xFF141322)
 val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
+
+object ServerCache {
+    var liveCats: List<CategoryItem> = emptyList()
+    var liveStreams: List<StreamItem> = emptyList()
+    var movieCats: List<CategoryItem> = emptyList()
+    var movieStreams: List<StreamItem> = emptyList()
+    var seriesCats: List<CategoryItem> = emptyList()
+    var seriesStreams: List<StreamItem> = emptyList()
+    var loadedForUrl: String = ""
+}
+
 data class PlaylistAccount(val name: String, val url: String, val user: String, val pass: String)
 data class CategoryItem(val id: String, val name: String)
 data class StreamItem(val id: String, val name: String, val streamUrl: String, val plot: String = "")
@@ -129,7 +140,51 @@ fun JujuWanMainApp() {
             }
         }
 
-        when (currentScreen) {
+        var isPreloading by remember { mutableStateOf(false) }
+        var loadingStep by remember { mutableStateOf("Connexion au serveur...") }
+        val preloadScope = rememberCoroutineScope()
+
+        LaunchedEffect(activeAccount) {
+            val acc = activeAccount
+            if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
+                isPreloading = true
+                loadingStep = "Chargement des chaînes en direct..."
+                ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
+                ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
+
+                loadingStep = "Chargement du catalogue Films..."
+                ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
+                ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
+
+                loadingStep = "Chargement du catalogue Séries..."
+                ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
+                ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
+
+                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
+                isPreloading = false
+            }
+        }
+
+        if (isPreloading && currentScreen != "PLAYLISTS") {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CardDark,
+                    border = BorderStroke(2.dp, NeonPurple),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        CircularProgressIndicator(color = NeonPurpleGlow)
+                        Text("Préparation de Juju Wan", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(loadingStep, color = NeonPurpleGlow, fontSize = 13.sp)
+                    }
+                }
+            }
+        } else when (currentScreen) {
             "HOME" -> HomeDashboard(
                 onOpenCategory = { cat ->
                     if (activeAccount == null) {
@@ -397,14 +452,16 @@ fun MediaBrowserScreen(
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(mode) {
-        isLoading = true
-        val actionCat = when (mode) {
-            "LIVE" -> "get_live_categories"
-            "MOVIES" -> "get_vod_categories"
-            else -> "get_series_categories"
+        categories = when (mode) {
+            "LIVE" -> ServerCache.liveCats
+            "MOVIES" -> ServerCache.movieCats
+            else -> ServerCache.seriesCats
         }
-        categories = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(account, actionCat)
-        streams = fetchStreams(account, mode, null)
+        streams = when (mode) {
+            "LIVE" -> ServerCache.liveStreams
+            "MOVIES" -> ServerCache.movieStreams
+            else -> ServerCache.seriesStreams
+        }
         isLoading = false
     }
 
@@ -417,11 +474,9 @@ fun MediaBrowserScreen(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text("Catégories", color = NeonPurpleGlow, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                OutlinedTextField(
-                    value = searchQuery, onValueChange = { searchQuery = it },
-                    placeholder = { Text("Rechercher...", fontSize = 12.sp) },
-                    singleLine = true, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
-                )
+                Spacer(Modifier.height(6.dp))
+                SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...")
+                Spacer(Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories.filter { it.name.contains(searchQuery, ignoreCase = true) }) { cat ->
                         Surface(
@@ -581,7 +636,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action$catParam"
         val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
-        (0 until minOf(arr.length(), 150)).map {
+        (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
             val id = obj.optString("stream_id", obj.optString("series_id"))
             val ext = obj.optString("container_extension", "mp4")
