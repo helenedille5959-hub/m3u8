@@ -614,7 +614,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            factory = { PlayerView(it).apply { player = exoPlayer; useController = (playingUrl.endsWith(".m3u8") == false) } },
+            factory = { PlayerView(it).apply { player = exoPlayer; useController = (url.endsWith(".m3u8") == false) } },
             modifier = Modifier.fillMaxSize()
         )
         Row(
