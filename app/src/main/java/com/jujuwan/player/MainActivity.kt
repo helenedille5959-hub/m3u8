@@ -548,7 +548,10 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
             val streamLink = when (mode) {
                 "LIVE" -> "${acc.url}/live/${acc.user}/${acc.pass}/$id.m3u8"
                 "MOVIES" -> "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext"
-
+                else -> "${acc.url}/series/${acc.user}/${acc.pass}/$id.$ext"
+            }
+            StreamItem(id, obj.optString("name"), streamLink, obj.optString("plot", ""))
+        }
     } catch (e: Exception) { emptyList() }
 }
 
