@@ -196,7 +196,7 @@ fun HomeDashboard(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().height(46.dp),
+            modifier = Modifier.fillMaxWidth().height(38.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             NeonBottomButton("Changer de playlist de serveur", Icons.Default.Dns, Modifier.weight(1f), onOpenPlaylists)
@@ -218,9 +218,9 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(40.dp))
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
             Spacer(Modifier.height(8.dp))
-            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
@@ -238,7 +238,7 @@ fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClic
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(10.dp))
             Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
@@ -265,7 +265,7 @@ fun PlaylistManagerScreen(
             border = BorderStroke(2.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Nom de la playlist (nommé comme vous le souhaitez)") },
@@ -442,7 +442,7 @@ fun MediaBrowserScreen(
                                 border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.5f)),
                                 modifier = Modifier.fillMaxWidth().clickable { selectedStream = item }
                             ) {
-                                Text(item.name, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(12.dp))
+                                Text(item.name, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
                             }
                         }
                     }
@@ -460,7 +460,7 @@ fun MediaBrowserScreen(
                 if (selectedStream != null) {
                     val item = selectedStream!!
                     Column {
-                        Text(item.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             BadgeChip("4K / HD")
@@ -528,7 +528,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
                 Text("← Quitter", color = Color.White)
             }
             Spacer(Modifier.width(12.dp))
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
 }
@@ -584,4 +584,17 @@ fun loadSavedAccounts(prefs: android.content.SharedPreferences): List<PlaylistAc
             PlaylistAccount(o.getString("name"), o.getString("url"), o.getString("user"), o.getString("pass"))
         }
     } catch (e: Exception) { emptyList() }
+}
+
+@Composable
+fun CompactField(value: String, onChange: (String) -> Unit, hint: String, isPass: Boolean = false) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        placeholder = { Text(hint, fontSize = 11.sp, maxLines = 1) },
+        singleLine = true,
+        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+        visualTransformation = if (isPass) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        modifier = Modifier.fillMaxWidth().height(46.dp)
+    )
 }
