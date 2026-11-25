@@ -9,6 +9,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -91,7 +93,7 @@ fun JujuWanMainApp() {
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
-            .padding(16.dp)
+            .statusBarsPadding().navigationBarsPadding().padding(10.dp)
     ) {
         if (currentScreen != "PLAYER") {
             Row(
@@ -203,7 +205,7 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         border = BorderStroke(2.dp, Brush.verticalGradient(listOf(NeonPurpleGlow, NeonPurple)))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -253,7 +255,7 @@ fun PlaylistManagerScreen(
             color = CardDark,
             border = BorderStroke(2.dp, NeonPurple)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Column(modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
                 Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
@@ -308,7 +310,7 @@ fun PlaylistManagerScreen(
             color = CardDark,
             border = BorderStroke(2.dp, NeonPurple)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(10.dp)) {
                 Text("Mes listes enregistrées", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -510,7 +512,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.TopStart),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().navigationBarsPadding().padding(10.dp).align(Alignment.TopStart),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.8f))) {
