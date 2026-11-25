@@ -56,6 +56,15 @@ data class StreamItem(val id: String, val name: String, val streamUrl: String, v
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide()
+        window.decorView.systemUiVisibility = (
+            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        )
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = NeonPurple, background = BgDark)) {
                 JujuWanMainApp()
@@ -93,7 +102,7 @@ fun JujuWanMainApp() {
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
-            .statusBarsPadding().navigationBarsPadding().padding(10.dp)
+            .padding(12.dp)
     ) {
         if (currentScreen != "PLAYER") {
             Row(
@@ -102,7 +111,7 @@ fun JujuWanMainApp() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Juju Wan", color = NeonPurpleGlow, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Juju Wan", color = NeonPurpleGlow, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(Modifier.width(12.dp))
                     val subtitle = when (currentScreen) {
                         "HOME" -> "Le lecteur premium"
@@ -112,9 +121,9 @@ fun JujuWanMainApp() {
                         "SERIES" -> "Séries"
                         else -> ""
                     }
-                    Text(subtitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text(subtitle, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text(currentDateTime, color = NeonPurpleGlow, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(currentDateTime, color = NeonPurpleGlow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -187,7 +196,7 @@ fun HomeDashboard(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp),
+            modifier = Modifier.fillMaxWidth().height(46.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             NeonBottomButton("Changer de playlist de serveur", Icons.Default.Dns, Modifier.weight(1f), onOpenPlaylists)
@@ -205,13 +214,13 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         border = BorderStroke(2.dp, Brush.verticalGradient(listOf(NeonPurpleGlow, NeonPurple)))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(10.dp),
+            modifier = Modifier.fillMaxSize().padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(64.dp))
-            Spacer(Modifier.height(16.dp))
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(40.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
@@ -229,9 +238,9 @@ fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClic
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
-            Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -255,8 +264,8 @@ fun PlaylistManagerScreen(
             color = CardDark,
             border = BorderStroke(2.dp, NeonPurple)
         ) {
-            Column(modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                Text("Xtream Codes API", color = NeonPurpleGlow, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Nom de la playlist (nommé comme vous le souhaitez)") },
@@ -310,7 +319,7 @@ fun PlaylistManagerScreen(
             color = CardDark,
             border = BorderStroke(2.dp, NeonPurple)
         ) {
-            Column(modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(10.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text("Mes listes enregistrées", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -451,7 +460,7 @@ fun MediaBrowserScreen(
                 if (selectedStream != null) {
                     val item = selectedStream!!
                     Column {
-                        Text(item.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(item.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             BadgeChip("4K / HD")
@@ -512,14 +521,14 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
         Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().navigationBarsPadding().padding(10.dp).align(Alignment.TopStart),
+            modifier = Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopStart),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.8f))) {
                 Text("← Quitter", color = Color.White)
             }
             Spacer(Modifier.width(12.dp))
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
     }
 }
