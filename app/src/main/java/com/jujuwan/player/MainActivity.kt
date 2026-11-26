@@ -86,61 +86,65 @@ object ServerCache {
         FastHttp.streamsMemo.clear()
         FastHttp.epgMemo.clear()
 
+        fun loadCats(action: String): List<CategoryItem> {
+            return try {
+                val u = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
+                val body = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "[]"
+                val arr = org.json.JSONArray(body)
+                val out = mutableListOf(CategoryItem("ALL", "Tout afficher"))
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    out.add(CategoryItem(o.optString("category_id"), o.optString("category_name")))
+                }
+                out
+            } catch (_: Exception) {
+                listOf(CategoryItem("ALL", "Tout afficher"))
+            }
+        }
+
         onStep(1, "Chargement des chaînes en direct...", 0.15f)
-        liveCats = fetchCategories(acc, "LIVE")
+        liveCats = loadCats("get_live_categories")
         liveStreams = fetchStreams(acc, "LIVE", "ALL")
 
         onStep(2, "Chargement des films...", 0.35f)
-        movieCats = fetchCategories(acc, "MOVIES")
+        movieCats = loadCats("get_vod_categories")
         movieStreams = fetchStreams(acc, "MOVIES", "ALL")
 
         onStep(3, "Chargement des séries...", 0.55f)
-        seriesCats = fetchCategories(acc, "SERIES")
+        seriesCats = loadCats("get_series_categories")
         seriesStreams = fetchStreams(acc, "SERIES", "ALL")
 
-        onStep(4, "Chargement du guide EPG...", 0.72f)
-        val epgTargets = liveStreams.take(40)
-        epgTargets.chunked(8).forEachIndexed { bIdx: Int, batch: List<StreamItem> ->
-            kotlinx.coroutines.coroutineScope {
-                batch.map { st: StreamItem ->
-                    kotlinx.coroutines.async { try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {} }
-                }.let { jobs -> kotlinx.coroutines.awaitAll(*jobs.toTypedArray()) }
-            }
-            val pEpg = 0.60f + (0.15f * (bIdx + 1).toFloat() / maxOf(1, (epgTargets.size + 7) / 8))
-            onStep(4, "Chargement du guide EPG (${minOf((bIdx + 1) * 8, epgTargets.size)}/${epgTargets.size})...", pEpg)
+        onStep(4, "Chargement du guide EPG...", 0.62f)
+        val epgTargets = liveStreams.take(30)
+        epgTargets.forEachIndexed { idx: Int, st: StreamItem ->
+            try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {}
+            val pEpg = 0.60f + (0.18f * (idx + 1).toFloat() / maxOf(1, epgTargets.size))
+            onStep(4, "Chargement du guide EPG (${idx + 1}/${epgTargets.size})...", pEpg)
         }
 
         onStep(5, "Chargement des jaquettes films & séries...", 0.80f)
-        val rawIcons: List<String> = movieStreams.take(80).map { st: StreamItem -> st.icon } + seriesStreams.take(80).map { st: StreamItem -> st.icon }
+        val rawIcons: List<String> = movieStreams.take(60).map { st: StreamItem -> st.icon } + seriesStreams.take(60).map { st: StreamItem -> st.icon }
         val urls: List<String> = rawIcons
             .map { raw: String -> val s = raw.trim(); if (s.startsWith("//")) "https:$s" else s }
             .filter { u: String -> u.startsWith("http") }
             .distinct()
 
-        var doneCount = 0
-        urls.chunked(10).forEach { batch: List<String> ->
-            kotlinx.coroutines.coroutineScope {
-                batch.map { u: String ->
-                    kotlinx.coroutines.async {
-                        if (PosterCache.lru.get(u) == null) {
-                            try {
-                                val req = Request.Builder().url(u.toString()).header("User-Agent", "Mozilla/5.0").build()
-                                val b = FastHttp.client.newCall(req).execute().body?.bytes()
-                                if (b != null && b.isNotEmpty()) {
-                                    val opts = android.graphics.BitmapFactory.Options().apply {
-                                        inSampleSize = 2
-                                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
-                                    }
-                                    android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
-                                }
-                            } catch (_: Exception) {}
+        urls.forEachIndexed { idx: Int, u: String ->
+            if (PosterCache.lru.get(u) == null) {
+                try {
+                    val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
+                    val b = FastHttp.client.newCall(req).execute().body?.bytes()
+                    if (b != null && b.isNotEmpty()) {
+                        val opts = android.graphics.BitmapFactory.Options().apply {
+                            inSampleSize = 2
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
                         }
+                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
                     }
-                }.let { jobs -> kotlinx.coroutines.awaitAll(*jobs.toTypedArray()) }
+                } catch (_: Exception) {}
             }
-            doneCount += batch.size
-            val pct = 0.78f + (0.22f * doneCount.toFloat() / maxOf(1, urls.size))
-            onStep(5, "Chargement des jaquettes films & séries ($doneCount/${urls.size})...", pct)
+            val pct = 0.78f + (0.22f * (idx + 1).toFloat() / maxOf(1, urls.size))
+            onStep(5, "Chargement des jaquettes films & séries (${idx + 1}/${urls.size})...", pct)
         }
 
         onStep(6, "Tout est prêt !", 1f)
@@ -236,15 +240,28 @@ fun JujuWanMainApp() {
         var syncLabel by remember { mutableStateOf("Chargement des chaînes en direct...") }
         var syncProgress by remember { mutableStateOf(0.1f) }
         LaunchedEffect(activeAccount) {
-            syncStep = 1
-            syncLabel = "Chargement des chaînes en direct..."
-            syncProgress = 0.1f
-            ServerCache.syncFull(activeAccount!!) { step, label, prog ->
-                syncStep = step
-                syncLabel = label
-                syncProgress = prog
+            val acc = activeAccount
+            if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
+                isPreloading = true
+                liveStatus = 1; movieStatus = 0; seriesStatus = 0
+                ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
+                ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
+                liveStatus = 2
+
+                movieStatus = 1
+                ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
+                ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
+                movieStatus = 2
+
+                seriesStatus = 1
+                ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
+                ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
+                seriesStatus = 2
+
+                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
+                delay(1000)
+                isPreloading = false
             }
-            isPreloading = false
         }
 
         if (isPreloading && currentScreen != "PLAYLISTS") {
@@ -268,7 +285,7 @@ fun JujuWanMainApp() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     androidx.compose.material3.LinearProgressIndicator(
-                        progress = { syncProgress },
+                        progress = syncProgress,
                         color = Color(0xFF38BDF8),
                         trackColor = Color(0xFF1E1B4B),
                         modifier = Modifier.fillMaxWidth().height(6.dp)
