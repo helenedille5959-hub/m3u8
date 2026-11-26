@@ -692,10 +692,8 @@ object PosterCache {
 fun ServerPosterImage(url: String, isMovie: Boolean) {
     val cleanUrl = url.trim().let { if (it.startsWith("//")) "https:$it" else it }
     var bmp by remember(cleanUrl) { mutableStateOf(if (cleanUrl.isNotEmpty()) PosterCache.lru.get(cleanUrl) else null) }
-    var loading by remember(cleanUrl) { mutableStateOf(bmp == null && cleanUrl.startsWith("http")) }
     LaunchedEffect(cleanUrl) {
         if (bmp == null && cleanUrl.startsWith("http")) {
-            loading = true
             val loaded = withContext(Dispatchers.IO) {
                 FastHttp.imgGate.acquire()
                 try {
@@ -714,9 +712,6 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
                 PosterCache.lru.put(cleanUrl, loaded)
                 bmp = loaded
             }
-            loading = false
-        } else {
-            loading = false
         }
     }
     Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
@@ -727,14 +722,18 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-        } else if (loading) {
+        } else if (cleanUrl.startsWith("http")) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 8.dp)) {
-                androidx.compose.material3.LinearProgressIndicator(color = Color(0xFF38BDF8), trackColor = Color(0xFF1E1B4B), modifier = Modifier.fillMaxWidth().height(3.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    color = Color(0xFF38BDF8),
+                    trackColor = Color(0xFF1E1B4B),
+                    modifier = Modifier.fillMaxWidth().height(3.dp)
+                )
                 Spacer(Modifier.height(5.dp))
                 Text("Chargement...", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(26.dp))
+            Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(28.dp))
         }
     }
 }
