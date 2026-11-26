@@ -587,7 +587,13 @@ fun MediaBrowserScreen(
                                 val item = filtered[idx]
                                 Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
-                                        ServerPosterImage(item.icon, activeMode == "MOVIES")
+                                        if (item.icon.isNotBlank()) {
+                                            AndroidView(factory = { c -> android.widget.ImageView(c).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP } }, update = { iv ->
+                                                Thread { try { val bmp = android.graphics.BitmapFactory.decodeStream(java.net.URL(item.icon).openStream()); iv.post { iv.setImageBitmap(bmp) } } catch (_: Exception) {} }.start()
+                                            }, modifier = Modifier.fillMaxSize())
+                                        } else {
+                                            Icon(if (activeMode == "MOVIES") Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
+                                        }
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(item.name, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 11.sp)
@@ -654,25 +660,53 @@ fun MediaBrowserScreen(
             }        }
     }
 }
+object FastHttp {
+    val client: OkHttpClient = run {
+        val tm = object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(c: Array<java.security.cert.X509Certificate>, a: String) {}
+            override fun checkServerTrusted(c: Array<java.security.cert.X509Certificate>, a: String) {}
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+        }
+        val sc = javax.net.ssl.SSLContext.getInstance("TLS").apply { init(null, arrayOf<javax.net.ssl.TrustManager>(tm), java.security.SecureRandom()) }
+        OkHttpClient.Builder()
+            .sslSocketFactory(sc.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true }
+            .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
+    }
+    val imgGate = kotlinx.coroutines.sync.Semaphore(6)
+    val streamsMemo = java.util.concurrent.ConcurrentHashMap<String, List<StreamItem>>()
+    val epgMemo = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
+}
+
 object PosterCache {
-    val map = java.util.concurrent.ConcurrentHashMap<String, android.graphics.Bitmap>()
+    val lru = object : android.util.LruCache<String, android.graphics.Bitmap>(160) {}
 }
 
 @Composable
 fun ServerPosterImage(url: String, isMovie: Boolean) {
     val cleanUrl = url.trim().let { if (it.startsWith("//")) "https:$it" else it }
-    var bmp by remember(cleanUrl) { mutableStateOf(PosterCache.map[cleanUrl]) }
+    var bmp by remember(cleanUrl) { mutableStateOf(PosterCache.lru.get(cleanUrl)) }
     LaunchedEffect(cleanUrl) {
         if (bmp == null && cleanUrl.startsWith("http")) {
             val loaded = withContext(Dispatchers.IO) {
+                FastHttp.imgGate.acquire()
                 try {
                     val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").build()
-                    val bytes = OkHttpClient().newCall(req).execute().body?.bytes()
-                    if (bytes != null) android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
-                } catch (_: Exception) { null }
+                    val bytes = FastHttp.client.newCall(req).execute().body?.bytes()
+                    if (bytes != null) {
+                        val opts = android.graphics.BitmapFactory.Options().apply {
+                            inSampleSize = 2
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                        }
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                    } else null
+                } catch (_: Exception) { null } finally { FastHttp.imgGate.release() }
             }
             if (loaded != null) {
-                PosterCache.map[cleanUrl] = loaded
+                PosterCache.lru.put(cleanUrl, loaded)
                 bmp = loaded
             }
         }
@@ -729,11 +763,11 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     }
 }
 
-suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"; val r = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { (0 until a.length()).joinToString("\n") { i -> val o = a.getJSONObject(i); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val h1 = o.optString("start").substringAfter(" ").take(5); val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5); if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt } } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
+suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"; val r = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { (0 until a.length()).joinToString("\n") { i -> val o = a.getJSONObject(i); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val h1 = o.optString("start").substringAfter(" ").take(5); val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5); if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt } } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
-        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = FastHttp.client.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
@@ -747,7 +781,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
         val action = when (mode) { "LIVE" -> "get_live_streams"; "MOVIES" -> "get_vod_streams"; else -> "get_series" }
         val catParam = if (catId != null) "&category_id=$catId" else ""
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action$catParam"
-        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
+        val res = FastHttp.client.newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "[]"
         val arr = JSONArray(res)
         (0 until arr.length()).map {
             val obj = arr.getJSONObject(it)
