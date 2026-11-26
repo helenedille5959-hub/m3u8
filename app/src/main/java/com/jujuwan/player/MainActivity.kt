@@ -673,6 +673,8 @@ object FastHttp {
             .hostnameVerifier { _, _ -> true }
             .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .retryOnConnectionFailure(true)
             .build()
     }
