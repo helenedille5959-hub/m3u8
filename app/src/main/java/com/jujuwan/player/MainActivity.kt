@@ -27,6 +27,10 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -127,7 +131,7 @@ fun JujuWanMainApp() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.drawBehind { val c = 8.dp.toPx(); val p = Path().apply { moveTo(c, 0f); lineTo(size.width - c, 0f); lineTo(size.width, c); lineTo(size.width, size.height - c); lineTo(size.width - c, size.height); lineTo(c, size.height); lineTo(0f, size.height - c); lineTo(0f, c); close() }; drawPath(p, Color(0xFF1A1033)); drawPath(p, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow)), style = Stroke(1.5.dp.toPx())) }.padding(horizontal = 12.dp, vertical = 5.dp)) { 	ext("JW", color = Color(0xFF38BDF8), fontSize = 18.sp, fontWeight = FontWeight.Black); Spacer(Modifier.width(8.dp)); 
                     Text("Juju Wan", color = NeonPurpleGlow, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(Modifier.width(12.dp))
                     val subtitle = when (currentScreen) {
@@ -254,28 +258,15 @@ fun JujuWanMainApp() {
 }
 
 @Composable
-fun HomeDashboard(
-    onOpenCategory: (String) -> Unit,
-    onOpenPlaylists: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 34.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            NeonMainCard("Télévision\nen direct", Icons.Default.Tv, Modifier.weight(1f)) { onOpenCategory("LIVE") }
+fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit, onOpenSettings: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 34.dp, vertical = 10.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Row(modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            NeonMainCard("Télévision
+ en direct", Icons.Default.Tv, Modifier.weight(1f)) { onOpenCategory("LIVE") }
             NeonMainCard("Films", Icons.Default.Movie, Modifier.weight(1f)) { onOpenCategory("MOVIES") }
             NeonMainCard("Séries", Icons.Default.VideoLibrary, Modifier.weight(1f)) { onOpenCategory("SERIES") }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().height(40.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             NeonBottomButton("Changer de playlist de serveur", Icons.Default.Dns, Modifier.weight(1f), onOpenPlaylists)
             NeonBottomButton("Réglage de l'application", Icons.Default.Settings, Modifier.weight(1f), onOpenSettings)
         }
@@ -284,51 +275,22 @@ fun HomeDashboard(
 
 @Composable
 fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .clickable { onClick() }
-            .drawBehind {
-                val c = 18.dp.toPx()
-                val notch = 10.dp.toPx()
-                val outer = Path().apply {
-                    moveTo(c, 0f); lineTo(size.width * 0.35f, 0f); lineTo(size.width * 0.38f, notch * 0.4f)
-                    lineTo(size.width * 0.62f, notch * 0.4f); lineTo(size.width * 0.65f, 0f); lineTo(size.width - c, 0f)
-                    lineTo(size.width, c); lineTo(size.width, size.height - c); lineTo(size.width - c, size.height)
-                    lineTo(size.width * 0.65f, size.height); lineTo(size.width * 0.62f, size.height - notch * 0.4f)
-                    lineTo(size.width * 0.38f, size.height - notch * 0.4f); lineTo(size.width * 0.35f, size.height)
-                    lineTo(c, size.height); lineTo(0f, size.height - c); lineTo(0f, c); close()
-                }
-                // Coeur violet lumineux radial
-                drawPath(
-                    outer,
-                    Brush.radialGradient(
-                        colors = listOf(Color(0xFF3A1C6E), Color(0xFF1B1236), Color(0xFF0E0B1A)),
-                        center = Offset(size.width / 2f, size.height / 2f),
-                        radius = size.maxDimension * 0.65f
-                    )
-                )
-                // Halo externe + bordure HUD double
-                drawPath(outer, NeonPurple.copy(alpha = 0.25f), style = Stroke(width = 6.dp.toPx()))
-                drawPath(outer, Brush.verticalGradient(listOf(NeonPurpleGlow, Color(0xFF38BDF8), NeonPurple)), style = Stroke(width = 2.dp.toPx()))
-
-                val inset = 7.dp.toPx()
-                val inner = Path().apply {
-                    moveTo(c + inset * 0.5f, inset); lineTo(size.width - c - inset * 0.5f, inset)
-                    lineTo(size.width - inset, c + inset * 0.5f); lineTo(size.width - inset, size.height - c - inset * 0.5f)
-                    lineTo(size.width - c - inset * 0.5f, size.height - inset); lineTo(c + inset * 0.5f, size.height - inset)
-                    lineTo(inset, size.height - c - inset * 0.5f); lineTo(inset, c + inset * 0.5f); close()
-                }
-                drawPath(inner, NeonPurpleGlow.copy(alpha = 0.45f), style = Stroke(width = 1.dp.toPx()))
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(30.dp))
+    Box(modifier = modifier.fillMaxHeight().clickable { onClick() }.drawBehind {
+        val c = 18.dp.toPx(); val n = 8.dp.toPx()
+        val outer = Path().apply {
+            moveTo(c, 0f); lineTo(size.width * 0.35f, 0f); lineTo(size.width * 0.38f, n * 0.5f)
+            lineTo(size.width * 0.62f, n * 0.5f); lineTo(size.width * 0.65f, 0f); lineTo(size.width - c, 0f)
+            lineTo(size.width, c); lineTo(size.width, size.height - c); lineTo(size.width - c, size.height)
+            lineTo(size.width * 0.65f, size.height); lineTo(size.width * 0.62f, size.height - n * 0.5f)
+            lineTo(size.width * 0.38f, size.height - n * 0.5f); lineTo(size.width * 0.35f, size.height)
+            lineTo(c, size.height); lineTo(0f, size.height - c); lineTo(0f, c); close()
+        }
+        drawPath(outer, Brush.radialGradient(listOf(Color(0xFF3A1C6E), Color(0xFF1B1236), Color(0xFF0E0B1A)), Offset(size.width / 2f, size.height / 2f), size.maxDimension * 0.65f))
+        drawPath(outer, NeonPurple.copy(alpha = 0.25f), style = Stroke(6.dp.toPx()))
+        drawPath(outer, Brush.verticalGradient(listOf(NeonPurpleGlow, Color(0xFF38BDF8), NeonPurple)), style = Stroke(2.dp.toPx()))
+    }, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(30.dp))
             Spacer(Modifier.height(8.dp))
             Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         }
@@ -337,37 +299,19 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
 
 @Composable
 fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .clickable { onClick() }
-            .drawBehind {
-                val b = 12.dp.toPx()
-                val hudBar = Path().apply {
-                    moveTo(b, 0f); lineTo(size.width - b, 0f)
-                    lineTo(size.width, size.height / 2f); lineTo(size.width - b, size.height)
-                    lineTo(b, size.height); lineTo(0f, size.height / 2f); close()
-                }
-                drawPath(hudBar, Brush.horizontalGradient(listOf(Color(0xFF141026), Color(0xFF261747), Color(0xFF141026))))
-                drawPath(hudBar, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow, Color(0xFF38BDF8))), style = Stroke(width = 1.6.dp.toPx()))
-                // Petits accents lateraux HUD
-                drawLine(NeonPurpleGlow, Offset(b + 6.dp.toPx(), 4.dp.toPx()), Offset(b + 22.dp.toPx(), 4.dp.toPx()), 1.5.dp.toPx())
-                drawLine(NeonPurpleGlow, Offset(size.width - b - 22.dp.toPx(), size.height - 4.dp.toPx()), Offset(size.width - b - 6.dp.toPx(), size.height - 4.dp.toPx()), 1.5.dp.toPx())
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
+    Box(modifier = modifier.fillMaxHeight().clickable { onClick() }.drawBehind {
+        val b = 12.dp.toPx()
+        val hud = Path().apply { moveTo(b, 0f); lineTo(size.width - b, 0f); lineTo(size.width, size.height / 2f); lineTo(size.width - b, size.height); lineTo(b, size.height); lineTo(0f, size.height / 2f); close() }
+        drawPath(hud, Brush.horizontalGradient(listOf(Color(0xFF141026), Color(0xFF261747), Color(0xFF141026))))
+        drawPath(hud, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow, Color(0xFF38BDF8))), style = Stroke(1.6.dp.toPx()))
+    }, contentAlignment = Alignment.Center) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
-
 @Composable
 fun PlaylistManagerScreen(
     prefs: android.content.SharedPreferences,
