@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -573,6 +575,32 @@ fun MediaBrowserScreen(
                     }
                 }
             }
+            if (activeMode != "LIVE") {
+                Box(modifier = Modifier.weight(2.8f).fillMaxHeight().hudFrame(active = false, cutDp = 12f).padding(8.dp)) {
+                    if (isLoading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = NeonPurpleGlow) }
+                    else {
+                        val filtered = streams.filter { it.name.contains(searchQuery, true) }
+                        LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 95.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(filtered.size) { idx ->
+                                val item = filtered[idx]
+                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                                        if (item.icon.isNotBlank()) {
+                                            AndroidView(factory = { c -> android.widget.ImageView(c).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP } }, update = { iv ->
+                                                Thread { try { val bmp = android.graphics.BitmapFactory.decodeStream(java.net.URL(item.icon).openStream()); iv.post { iv.setImageBitmap(bmp) } } catch (_: Exception) {} }.start()
+                                            }, modifier = Modifier.fillMaxSize())
+                                        } else {
+                                            Icon(if (activeMode == "MOVIES") Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(item.name, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
             Box(modifier = Modifier.weight(0.95f).fillMaxHeight().hudFrame(active = false, cutDp = 10f).padding(6.dp)) {
                 if (isLoading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = NeonPurpleGlow) }
                 else {
@@ -626,7 +654,8 @@ fun MediaBrowserScreen(
                     }
                 }
             }
-        }
+
+            }        }
     }
 }
 @Composable
