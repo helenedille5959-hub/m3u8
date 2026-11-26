@@ -63,6 +63,7 @@ val NeonPurpleGlow = Color(0xFFD966FF)
 
 
 object ServerCache {
+    var loadedKey: String = ""
     var liveCats: List<CategoryItem> = emptyList()
     var liveStreams: List<StreamItem> = emptyList()
     var movieCats: List<CategoryItem> = emptyList()
@@ -816,16 +817,17 @@ suspend fun fetchLiveEpg(
         seriesStreams = fetchStreams(acc, "SERIES", "ALL")
 
         onProgress("4/5 • Chargement du guide EPG...", 0.75f)
-        liveStreams.take(10).forEach { st ->
+        liveStreams.take(10).forEach { st: StreamItem ->
             try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {}
         }
 
         onProgress("5/5 • Chargement des jaquettes Films & Séries...", 0.88f)
-        val urls = (movieStreams.take(20).map { it.icon } + seriesStreams.take(20).map { it.icon })
-            .map { u -> u.trim().let { s -> if (s.startsWith("//")) "https:$s" else s } }
-            .filter { u -> u.startsWith("http") }
+        val rawIcons: List<String> = movieStreams.take(20).map { st: StreamItem -> st.icon } + seriesStreams.take(20).map { st: StreamItem -> st.icon }
+        val urls: List<String> = rawIcons
+            .map { raw: String -> val s = raw.trim(); if (s.startsWith("//")) "https:$s" else s }
+            .filter { u: String -> u.startsWith("http") }
             .distinct()
-        urls.forEachIndexed { idx, u ->
+        urls.forEachIndexed { idx: Int, u: String ->
             if (PosterCache.lru.get(u) == null) {
                 try {
                     val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
@@ -835,7 +837,7 @@ suspend fun fetchLiveEpg(
                             inSampleSize = 2
                             inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
                         }
-                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { PosterCache.lru.put(u, it) }
+                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
                     }
                 } catch (_: Exception) {}
             }
