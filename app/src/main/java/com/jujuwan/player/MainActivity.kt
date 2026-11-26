@@ -219,7 +219,7 @@ fun JujuWanMainApp() {
 
             "PLAYLISTS" -> PlaylistManagerScreen(
                 prefs = prefs,
-                onBack = { currentScreen = "HOME" },
+                onBack = { currentScreen = "HOME" }, onSwitchMode = { currentScreen = it },
                 onSelectAccount = { acc ->
                     activeAccount = acc
                     prefs.edit()
@@ -524,7 +524,8 @@ fun MediaBrowserScreen(
     mode: String,
     account: PlaylistAccount,
     onBack: () -> Unit,
-    onPlayFullScreen: (String, String) -> Unit
+    onPlayFullScreen: (String, String) -> Unit,
+    onSwitchMode: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var activeMode by remember(mode) { mutableStateOf(mode) }
@@ -552,7 +553,7 @@ fun MediaBrowserScreen(
             Text("|", color = Color(0xFF38BDF8), fontSize = 11.sp)
             listOf("LIVE" to "En direct", "MOVIES" to "Films", "SERIES" to "Séries").forEach { (mKey, label) ->
                 val sel = activeMode == mKey
-                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { activeMode = mKey })
+                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { selectedStream = null; epgInfo = ""; searchQuery = ""; activeMode = mKey; onSwitchMode(mKey) })
                 Text("|", color = NeonPurpleGlow, fontSize = 11.sp)
             }
             Box(modifier = Modifier.weight(1f)) { SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...") }
