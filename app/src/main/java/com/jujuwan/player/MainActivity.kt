@@ -72,7 +72,8 @@ object ServerCache {
 
 data class PlaylistAccount(val name: String, val url: String, val user: String, val pass: String)
 data class CategoryItem(val id: String, val name: String)
-data class StreamItem(val id: String, val name: String, val streamUrl: String, val plot: String = "")
+data class StreamItem(val id: String, val name: String, val streamUrl: String, val icon: String = "",
+    val plot: String = "")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
