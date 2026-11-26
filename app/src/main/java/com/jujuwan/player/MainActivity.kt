@@ -794,7 +794,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
                 "MOVIES" -> "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext"
                 else -> "${acc.url}/series/${acc.user}/${acc.pass}/$id.$ext"
             }
-            StreamItem(id, obj.optString("name"), streamLink, obj.optString("stream_icon", obj.optString("cover", "")), obj.optString("plot")
+            StreamItem(id, obj.optString("name"), streamLink, obj.optString("stream_icon", obj.optString("cover", "")), obj.optString("plot", ""))
         }
     } catch (e: Exception) { emptyList() }
 }
