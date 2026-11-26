@@ -500,6 +500,25 @@ fun SlimInputBox(value: String, onValueChange: (String) -> Unit, placeholder: St
     }
 }
 
+fun Modifier.hudFrame(active: Boolean = false, cutDp: Float = 10f): Modifier = this.drawBehind {
+    val w = size.width; val h = size.height; val c = cutDp.dp.toPx()
+    val path = Path().apply {
+        moveTo(c, 0f); lineTo(w - c, 0f); lineTo(w, c); lineTo(w, h - c)
+        lineTo(w - c, h); lineTo(c, h); lineTo(0f, h - c); lineTo(0f, c); close()
+    }
+    val bg = if (active) {
+        Brush.radialGradient(listOf(Color(0xFF5A25B5), Color(0xFF281254), Color(0xFF120B26)), Offset(w / 2f, h / 2f), maxOf(w, h) * 0.7f)
+    } else {
+        Brush.radialGradient(listOf(Color(0xFF231347), Color(0xFF130B29), Color(0xFF0A0617)), Offset(w / 2f, h / 2f), maxOf(w, h) * 0.8f)
+    }
+    drawPath(path, bg)
+    drawPath(path, NeonPurple.copy(alpha = if (active) 0.4f else 0.2f), style = Stroke(4.dp.toPx()))
+    drawPath(path, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow, Color(0xFF38BDF8))), style = Stroke(if (active) 1.8.dp.toPx() else 1.2.dp.toPx()))
+    val tk = 8.dp.toPx()
+    drawLine(Color(0xFF38BDF8), Offset(c, 2.dp.toPx()), Offset(c + tk, 2.dp.toPx()), 1.5.dp.toPx())
+    drawLine(Color(0xFF38BDF8), Offset(w - c - tk, h - 2.dp.toPx()), Offset(w - c, h - 2.dp.toPx()), 1.5.dp.toPx())
+}
+
 @Composable
 fun MediaBrowserScreen(
     mode: String,
@@ -508,146 +527,107 @@ fun MediaBrowserScreen(
     onPlayFullScreen: (String, String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    var activeMode by remember(mode) { mutableStateOf(mode) }
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
     var streams by remember { mutableStateOf<List<StreamItem>>(emptyList()) }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var epgInfo by remember { mutableStateOf("") }; var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
+    var selectedCategory by remember { mutableStateOf<String?>("ALL") }
+    var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
+    var epgInfo by remember { mutableStateOf("") }
 
-    LaunchedEffect(mode) {
-        categories = when (mode) {
-            "LIVE" -> ServerCache.liveCats
-            "MOVIES" -> ServerCache.movieCats
-            else -> ServerCache.seriesCats
-        }
-        streams = when (mode) {
-            "LIVE" -> ServerCache.liveStreams
-            "MOVIES" -> ServerCache.movieStreams
-            else -> ServerCache.seriesStreams
-        }
-        isLoading = false
+    LaunchedEffect(activeMode) {
+        selectedCategory = "ALL"
+        categories = when (activeMode) { "LIVE" -> ServerCache.liveCats; "MOVIES" -> ServerCache.movieCats; else -> ServerCache.seriesCats }
+        streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
     }
 
-    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Surface(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.5.dp, NeonPurple)
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().hudFrame(active = false, cutDp = 8f).padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("Catégories", color = NeonPurpleGlow, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(Modifier.height(6.dp))
-                SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...")
-                Spacer(Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(categories.filter { it.name.contains(searchQuery, ignoreCase = true) }) { cat ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedCategory == cat.id) NeonPurple else BgDark,
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                selectedCategory = cat.id
-                                scope.launch {
-                                    isLoading = true
-                                    streams = fetchStreams(account, mode, if (cat.id == "ALL") null else cat.id)
-                                    isLoading = false
+            Text("Accueil", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
+            Text("|", color = Color(0xFF38BDF8), fontSize = 11.sp)
+            listOf("LIVE" to "En direct", "MOVIES" to "Films", "SERIES" to "Séries").forEach { (mKey, label) ->
+                val sel = activeMode == mKey
+                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { activeMode = mKey })
+                Text("|", color = NeonPurpleGlow, fontSize = 11.sp)
+            }
+            Box(modifier = Modifier.weight(1f)) { SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...") }
+        }
+        Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.weight(0.75f).fillMaxHeight().hudFrame(active = false, cutDp = 10f).padding(6.dp)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    items(categories.filter { it.name.contains(searchQuery, true) }) { cat ->
+                        val isSel = selectedCategory == cat.id
+                        Box(modifier = Modifier.fillMaxWidth().hudFrame(active = isSel, cutDp = 5f).clickable {
+                            selectedCategory = cat.id
+                            if (cat.id == "ALL") streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
+                            else scope.launch { isLoading = true; streams = fetchStreams(account, activeMode, cat.id); isLoading = false }
+                        }.padding(horizontal = 8.dp, vertical = 5.dp)) {
+                            Text(cat.name, color = if (isSel) Color.White else Color.LightGray, fontSize = 9.5.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                        }
+                    }
+                }
+            }
+            Box(modifier = Modifier.weight(0.95f).fillMaxHeight().hudFrame(active = false, cutDp = 10f).padding(6.dp)) {
+                if (isLoading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = NeonPurpleGlow) }
+                else {
+                    val filtered = streams.filter { it.name.contains(searchQuery, true) }
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        items(filtered.size) { idx ->
+                            val item = filtered[idx]
+                            val isSel = selectedStream == item
+                            Row(modifier = Modifier.fillMaxWidth().hudFrame(active = isSel, cutDp = 5f).clickable {
+                                selectedStream = item
+                                if (activeMode == "LIVE") scope.launch { epgInfo = "Chargement EPG..."; epgInfo = fetchLiveEpg(account, item.id) }
+                            }.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${idx + 1}", color = Color(0xFF38BDF8), fontSize = 9.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
+                                Text(item.name, color = Color.White, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+            Box(modifier = Modifier.weight(1.85f).fillMaxHeight().hudFrame(active = false, cutDp = 12f).padding(8.dp)) {
+                Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (selectedStream != null) {
+                        val item = selectedStream!!
+                        val ctx = LocalContext.current
+                        val pv = if (activeMode == "LIVE") remember(item.streamUrl) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(item.streamUrl)); prepare(); playWhenReady = true } } else null
+                        DisposableEffect(item.streamUrl, activeMode) { onDispose { pv?.release() } }
+                        if (activeMode == "LIVE" && pv != null) {
+                            Box(modifier = Modifier.fillMaxWidth().weight(1.15f).hudFrame(active = true, cutDp = 8f).padding(2.dp).clickable { pv.release(); onPlayFullScreen(item.name, item.streamUrl) }) {
+                                AndroidView(factory = { c -> PlayerView(c).apply { player = pv; useController = false } }, update = { it.player = pv }, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                        Column(modifier = Modifier.weight(0.85f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                            Text(item.name, color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(3.dp))
+                            Text(if (activeMode == "LIVE") epgInfo else item.plot.ifBlank { "Flux prêt sur Juju Wan." }, color = Color(0xFF38BDF8), fontSize = 9.5.sp, lineHeight = 12.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().height(30.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight().hudFrame(active = true, cutDp = 7f).clickable { pv?.release(); onPlayFullScreen(item.name, item.streamUrl) }, contentAlignment = Alignment.Center) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Plein écran", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                        ) {
-                            Text(cat.name, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(10.dp))
-                        }
-                    }
-                }
-                OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, NeonPurple)) {
-                    Text("← Retour", color = Color.White)
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.5.dp, NeonPurple)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    when (mode) { "LIVE" -> "Chaînes"; "MOVIES" -> "Films"; else -> "Séries" },
-                    color = NeonPurpleGlow, fontWeight = FontWeight.Bold, fontSize = 16.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                if (isLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonPurpleGlow)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(streams) { item ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selectedStream == item) NeonPurple.copy(alpha = 0.4f) else BgDark,
-                                border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth().clickable { selectedStream = item; if (mode == "LIVE") { scope.launch { epgInfo = "Chargement EPG..."; epgInfo = fetchLiveEpg(account, item.id) } } }
-                            ) {
-                                Text(item.name, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+                            Box(modifier = Modifier.weight(0.7f).fillMaxHeight().hudFrame(active = false, cutDp = 7f).clickable { pv?.release(); onBack() }, contentAlignment = Alignment.Center) {
+                                Text("Accueil", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.5.dp, NeonPurple)
-        ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                if (selectedStream != null) {
-                    val item = selectedStream!!
-                    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        if (mode == "LIVE") {
-                            val ctx = LocalContext.current
-                            val pv = remember(item.streamUrl) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(item.streamUrl)); prepare(); playWhenReady = true } }
-                            DisposableEffect(item.streamUrl) { onDispose { pv.release() } }
-                            AndroidView(factory = { c -> PlayerView(c).apply { player = pv; useController = false } }, update = { it.player = pv }, modifier = Modifier.fillMaxWidth().height(85.dp).clickable { pv.release(); onPlayFullScreen(item.name, item.streamUrl) })
-                        } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            BadgeChip("4K / HD")
-                            BadgeChip("HEVC")
-                            BadgeChip("DTS / EAC3")
-                        }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = if (mode == "LIVE") epgInfo else item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." },
-                            color = Color.LightGray,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Button(
-                        onClick = { onPlayFullScreen(item.name, item.streamUrl) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, tint = Color.White)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Lancer en plein écran", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Sélectionnez un élément à gauche", color = Color.Gray)
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Sélectionnez une chaîne pour lancer l aperçu", color = Color.Gray, fontSize = 11.sp) }
                     }
                 }
             }
         }
     }
 }
-
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
