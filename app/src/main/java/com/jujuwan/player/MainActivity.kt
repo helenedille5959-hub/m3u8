@@ -576,7 +576,7 @@ LazyColumn(modifier=Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy
 }else{Text(item.name,color=Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(6.dp));Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){BadgeChip("4K / HD");BadgeChip("HEVC");BadgeChip("DTS / EAC3")};Spacer(Modifier.height(8.dp));Text(item.plot.ifBlank{"Flux prêt sur Juju Wan."},color=Color.LightGray,fontSize=11.sp)}
 }
 Button(onClick={pv?.release();onPlayFullScreen(item.name,item.streamUrl)},modifier=Modifier.fillMaxWidth().height(34.dp),contentPadding=PaddingValues(0.dp),colors=ButtonDefaults.buttonColors(containerColor=NeonPurple)){Icon(Icons.Default.PlayArrow,null,tint=Color.White,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lancer en plein écran",color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold)}
-}else{Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text("Sélectionnez une chaîne à gauche",color=Color.Gray,fontSize=12.sp)}}}}
+}else{Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text("Sélectionnez une chaîne à gauche",color=Color.Gray,fontSize=12.sp)}}}}}
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
