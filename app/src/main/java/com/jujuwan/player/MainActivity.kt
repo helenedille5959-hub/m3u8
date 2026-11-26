@@ -73,60 +73,77 @@ object ServerCache {
 
     var loadedKey: String = ""
 
-    suspend fun syncAll(
+    suspend fun syncFull(
         acc: PlaylistAccount,
-        onProgress: (String, Float) -> Unit
+        onStep: (Int, String, Float) -> Unit
     ) = withContext(Dispatchers.IO) {
         val k = "${acc.url}_${acc.user}"
         if (loadedKey == k && liveStreams.isNotEmpty()) {
-            onProgress("Données déjà prêtes", 1f)
+            onStep(6, "Contenu prêt !", 1f)
             return@withContext
         }
         PosterCache.lru.evictAll()
         FastHttp.streamsMemo.clear()
         FastHttp.epgMemo.clear()
 
-        onProgress("1/5 • Chargement TV en direct...", 0.15f)
+        onStep(1, "Chargement des chaînes en direct...", 0.15f)
         liveCats = fetchCategories(acc, "LIVE")
         liveStreams = fetchStreams(acc, "LIVE", "ALL")
 
-        onProgress("2/5 • Chargement des Films (${liveStreams.size} chaînes)...", 0.35f)
+        onStep(2, "Chargement des films...", 0.35f)
         movieCats = fetchCategories(acc, "MOVIES")
         movieStreams = fetchStreams(acc, "MOVIES", "ALL")
 
-        onProgress("3/5 • Chargement des Séries (${movieStreams.size} films)...", 0.55f)
+        onStep(3, "Chargement des séries...", 0.55f)
         seriesCats = fetchCategories(acc, "SERIES")
         seriesStreams = fetchStreams(acc, "SERIES", "ALL")
 
-        onProgress("4/5 • Chargement du guide EPG...", 0.75f)
-        liveStreams.take(10).forEach { st: StreamItem ->
-            try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {}
+        onStep(4, "Chargement du guide EPG...", 0.72f)
+        val epgTargets = liveStreams.take(40)
+        epgTargets.chunked(8).forEachIndexed { bIdx, batch ->
+            kotlinx.coroutines.coroutineScope {
+                batch.map { st: StreamItem ->
+                    async { try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {} }
+                }.awaitAll()
+            }
+            val pEpg = 0.60f + (0.15f * (bIdx + 1).toFloat() / maxOf(1, (epgTargets.size + 7) / 8))
+            onStep(4, "Chargement du guide EPG (${minOf((bIdx + 1) * 8, epgTargets.size)}/${epgTargets.size})...", pEpg)
         }
 
-        onProgress("5/5 • Chargement des jaquettes Films & Séries...", 0.88f)
-        val rawIcons: List<String> = movieStreams.take(20).map { st: StreamItem -> st.icon } + seriesStreams.take(20).map { st: StreamItem -> st.icon }
+        onStep(5, "Chargement des jaquettes films & séries...", 0.80f)
+        val rawIcons: List<String> = movieStreams.take(80).map { st: StreamItem -> st.icon } + seriesStreams.take(80).map { st: StreamItem -> st.icon }
         val urls: List<String> = rawIcons
             .map { raw: String -> val s = raw.trim(); if (s.startsWith("//")) "https:$s" else s }
             .filter { u: String -> u.startsWith("http") }
             .distinct()
-        urls.forEachIndexed { idx: Int, u: String ->
-            if (PosterCache.lru.get(u) == null) {
-                try {
-                    val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
-                    val b = FastHttp.client.newCall(req).execute().body?.bytes()
-                    if (b != null && b.isNotEmpty()) {
-                        val opts = android.graphics.BitmapFactory.Options().apply {
-                            inSampleSize = 2
-                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+
+        var doneCount = 0
+        urls.chunked(10).forEach { batch ->
+            kotlinx.coroutines.coroutineScope {
+                batch.map { u: String ->
+                    async {
+                        if (PosterCache.lru.get(u) == null) {
+                            try {
+                                val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
+                                val b = FastHttp.client.newCall(req).execute().body?.bytes()
+                                if (b != null && b.isNotEmpty()) {
+                                    val opts = android.graphics.BitmapFactory.Options().apply {
+                                        inSampleSize = 2
+                                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                                    }
+                                    android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
+                                }
+                            } catch (_: Exception) {}
                         }
-                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
                     }
-                } catch (_: Exception) {}
+                }.awaitAll()
             }
-            val pct = 0.85f + (0.15f * (idx + 1).toFloat() / maxOf(1, urls.size))
-            onProgress("5/5 • Jaquettes Films & Séries (${idx + 1}/${urls.size})...", pct)
+            doneCount += batch.size
+            val pct = 0.78f + (0.22f * doneCount.toFloat() / maxOf(1, urls.size))
+            onStep(5, "Chargement des jaquettes films & séries ($doneCount/${urls.size})...", pct)
         }
-        onProgress("Synchronisation terminée !", 1f)
+
+        onStep(6, "Tout est prêt !", 1f)
         loadedKey = k
     }
 }
@@ -215,57 +232,78 @@ fun JujuWanMainApp() {
         var movieStatus by remember { mutableStateOf(0) }
         var seriesStatus by remember { mutableStateOf(0) }
 
+        var syncStep by remember { mutableIntStateOf(1) }
+        var syncLabel by remember { mutableStateOf("Chargement des chaînes en direct...") }
+        var syncProgress by remember { mutableFloatStateOf(0.1f) }
         LaunchedEffect(activeAccount) {
-            val acc = activeAccount
-            if (acc != null && ServerCache.loadedForUrl != "${acc.url}_${acc.user}") {
-                isPreloading = true
-                liveStatus = 1; movieStatus = 0; seriesStatus = 0
-                ServerCache.liveCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_live_categories")
-                ServerCache.liveStreams = fetchStreams(acc, "LIVE", null)
-                liveStatus = 2
-
-                movieStatus = 1
-                ServerCache.movieCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_vod_categories")
-                ServerCache.movieStreams = fetchStreams(acc, "MOVIES", null)
-                movieStatus = 2
-
-                seriesStatus = 1
-                ServerCache.seriesCats = listOf(CategoryItem("ALL", "Tout afficher")) + fetchCategories(acc, "get_series_categories")
-                ServerCache.seriesStreams = fetchStreams(acc, "SERIES", null)
-                seriesStatus = 2
-
-                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
-                delay(1000)
-                isPreloading = false
+            syncStep = 1
+            syncLabel = "Chargement des chaînes en direct..."
+            syncProgress = 0.1f
+            ServerCache.syncFull(activeAccount!!) { step, label, prog ->
+                syncStep = step
+                syncLabel = label
+                syncProgress = prog
             }
+            isPreloading = false
         }
 
         if (isPreloading && currentScreen != "PLAYLISTS") {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardDark,
-                    border = BorderStroke(2.dp, NeonPurple),
-                    modifier = Modifier.padding(20.dp).fillMaxWidth(0.75f)
+                shape = RoundedCornerShape(16.dp),
+                color = CardDark,
+                border = BorderStroke(1.5.dp, NeonPurpleGlow),
+                modifier = Modifier.width(460.dp).padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            "Le contenu de votre serveur charge pour la première fois, cela va prendre un certain moment...",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        StepCheckRow("Chargement des chaînes en direct", "Chaînes chargées", liveStatus)
-                        StepCheckRow("Chargement des films", "Films chargés", movieStatus)
-                        StepCheckRow("Chargement des séries", "Séries chargées", seriesStatus)
+                    Text(
+                        "Le contenu de votre serveur charge pour la première fois, cela va prendre un certain moment...",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { syncProgress },
+                        color = Color(0xFF38BDF8),
+                        trackColor = Color(0xFF1E1B4B),
+                        modifier = Modifier.fillMaxWidth().height(6.dp)
+                    )
+                    Text(syncLabel, color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    val stepsList = listOf(
+                        1 to "Chargement des chaînes en direct",
+                        2 to "Chargement des films",
+                        3 to "Chargement des séries",
+                        4 to "Chargement du guide EPG",
+                        5 to "Chargement des jaquettes films & séries"
+                    )
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        stepsList.forEach { (stNum, stTitle) ->
+                            val done = syncStep > stNum
+                            val active = syncStep == stNum
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (done) {
+                                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                } else if (active) {
+                                    CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                                } else {
+                                    Box(modifier = Modifier.size(15.dp).border(1.dp, Color.Gray, androidx.compose.foundation.shape.CircleShape))
+                                }
+                                Text(
+                                    stTitle,
+                                    color = if (done || active) Color.White else Color.Gray,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
                     }
                 }
+            }
             }
         } else when (currentScreen) {
             "HOME" -> HomeDashboard(
