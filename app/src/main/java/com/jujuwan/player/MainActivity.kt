@@ -100,11 +100,11 @@ object ServerCache {
 
         onStep(4, "Chargement du guide EPG...", 0.72f)
         val epgTargets = liveStreams.take(40)
-        epgTargets.chunked(8).forEachIndexed { bIdx, batch ->
+        epgTargets.chunked(8).forEachIndexed { bIdx: Int, batch: List<StreamItem> ->
             kotlinx.coroutines.coroutineScope {
                 batch.map { st: StreamItem ->
-                    async { try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {} }
-                }.awaitAll()
+                    kotlinx.coroutines.async { try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {} }
+                }.let { jobs -> kotlinx.coroutines.awaitAll(*jobs.toTypedArray()) }
             }
             val pEpg = 0.60f + (0.15f * (bIdx + 1).toFloat() / maxOf(1, (epgTargets.size + 7) / 8))
             onStep(4, "Chargement du guide EPG (${minOf((bIdx + 1) * 8, epgTargets.size)}/${epgTargets.size})...", pEpg)
@@ -118,13 +118,13 @@ object ServerCache {
             .distinct()
 
         var doneCount = 0
-        urls.chunked(10).forEach { batch ->
+        urls.chunked(10).forEach { batch: List<String> ->
             kotlinx.coroutines.coroutineScope {
                 batch.map { u: String ->
-                    async {
+                    kotlinx.coroutines.async {
                         if (PosterCache.lru.get(u) == null) {
                             try {
-                                val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
+                                val req = Request.Builder().url(u.toString()).header("User-Agent", "Mozilla/5.0").build()
                                 val b = FastHttp.client.newCall(req).execute().body?.bytes()
                                 if (b != null && b.isNotEmpty()) {
                                     val opts = android.graphics.BitmapFactory.Options().apply {
@@ -136,7 +136,7 @@ object ServerCache {
                             } catch (_: Exception) {}
                         }
                     }
-                }.awaitAll()
+                }.let { jobs -> kotlinx.coroutines.awaitAll(*jobs.toTypedArray()) }
             }
             doneCount += batch.size
             val pct = 0.78f + (0.22f * doneCount.toFloat() / maxOf(1, urls.size))
@@ -232,9 +232,9 @@ fun JujuWanMainApp() {
         var movieStatus by remember { mutableStateOf(0) }
         var seriesStatus by remember { mutableStateOf(0) }
 
-        var syncStep by remember { mutableIntStateOf(1) }
+        var syncStep by remember { mutableStateOf(1) }
         var syncLabel by remember { mutableStateOf("Chargement des chaînes en direct...") }
-        var syncProgress by remember { mutableFloatStateOf(0.1f) }
+        var syncProgress by remember { mutableStateOf(0.1f) }
         LaunchedEffect(activeAccount) {
             syncStep = 1
             syncLabel = "Chargement des chaînes en direct..."
@@ -287,11 +287,16 @@ fun JujuWanMainApp() {
                             val active = syncStep == stNum
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (done) {
-                                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                    Text("✓", color = Color(0xFF38BDF8), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                                 } else if (active) {
                                     CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
                                 } else {
-                                    Box(modifier = Modifier.size(15.dp).border(1.dp, Color.Gray, androidx.compose.foundation.shape.CircleShape))
+                                    Surface(
+                                        modifier = Modifier.size(15.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        color = Color.Transparent,
+                                        border = BorderStroke(1.dp, Color.Gray)
+                                    ) {}
                                 }
                                 Text(
                                     stTitle,
