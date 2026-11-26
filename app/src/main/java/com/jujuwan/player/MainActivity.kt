@@ -692,12 +692,12 @@ suspend fun fetchLiveEpg(acc: PlaylistAccount, streamId: String): Pair<String, S
         val h1 = o.optString("start"). substringAfter(" ").take(5)
         val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5)
         val hdr = if (h1.isNotEmpty() && h2.isNotEmpty()) "[$h1 - $h2] $tt" else tt
-        var nextTxt = "A suivre"
+        var nextTxt = """
         if (listings.length() > 1) {
             val o2 = listings.getJSONObject(1)
             val ntt = try { String(android.util.Base64.decode(o2.optString("title"), 0), Charsets.UTF_8) } catch (_: Exception) { o2.optString("title") }
             val nh = o2.optString("start").substringAfter(" ").take(5)
-            if (ntt.isNotEmpty()) nextTxt = "A suivre
+            if (ntt.isNotEmpty()) nextTxt = ""
 
         }
         Pair(hdr.ifBlank { "En direct" }, (dd.ifBlank { "Diffusion en cours sur Juju Wan." }) + nextTxt)
