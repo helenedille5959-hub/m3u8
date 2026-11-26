@@ -219,7 +219,7 @@ fun JujuWanMainApp() {
 
             "PLAYLISTS" -> PlaylistManagerScreen(
                 prefs = prefs,
-                onBack = { currentScreen = "HOME" }, onSwitchMode = { currentScreen = it },
+                onBack = { currentScreen = "HOME" },
                 onSelectAccount = { acc ->
                     activeAccount = acc
                     prefs.edit()
@@ -237,7 +237,7 @@ fun JujuWanMainApp() {
                 MediaBrowserScreen(
                     mode = currentScreen,
                     account = acc,
-                    onBack = { currentScreen = "HOME" },
+                    onBack = { currentScreen = "HOME" }, onSwitchMode = { currentScreen = it },
                     onPlayFullScreen = { title, url ->
                         playingTitle = title
                         playingUrl = url
