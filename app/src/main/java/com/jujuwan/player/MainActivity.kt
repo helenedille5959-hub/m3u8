@@ -51,7 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 val BgDark = Color(0xFF0A0A12)
-val CardDark = Color(0xFF141322)
+val Color(0xFF1A0F36) = Color(0xFF141322)
 val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
@@ -177,9 +177,9 @@ fun JujuWanMainApp() {
         if (isPreloading && currentScreen != "PLAYLISTS") {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardDark,
-                    border = BorderStroke(2.dp, NeonPurple),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFF1A0F36),
+                    border = BorderStroke(2.dp, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow, Color(0xFF38BDF8)))),
                     modifier = Modifier.padding(20.dp).fillMaxWidth(0.75f)
                 ) {
                     Column(
@@ -254,14 +254,25 @@ fun JujuWanMainApp() {
 }
 
 @Composable
-fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit, onOpenSettings: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 34.dp, vertical = 10.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        Row(modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            NeonMainCard("Télévision en direct", Icons.Default.Tv, Modifier.weight(1f)) { onOpenCategory("LIVE") }
+fun HomeDashboard(
+    onOpenCategory: (String) -> Unit,
+    onOpenPlaylists: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 52.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            NeonMainCard("Télévision\nen direct", Icons.Default.Tv, Modifier.weight(1f)) { onOpenCategory("LIVE") }
             NeonMainCard("Films", Icons.Default.Movie, Modifier.weight(1f)) { onOpenCategory("MOVIES") }
             NeonMainCard("Séries", Icons.Default.VideoLibrary, Modifier.weight(1f)) { onOpenCategory("SERIES") }
         }
-        Row(modifier = Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 52.dp).height(34.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             NeonBottomButton("Changer de playlist de serveur", Icons.Default.Dns, Modifier.weight(1f), onOpenPlaylists)
             NeonBottomButton("Réglage de l'application", Icons.Default.Settings, Modifier.weight(1f), onOpenSettings)
         }
@@ -270,44 +281,44 @@ fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit,
 
 @Composable
 fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier = modifier.fillMaxHeight().clickable { onClick() }.drawBehind {
-        val c = 18.dp.toPx(); val n = 8.dp.toPx()
-        val outer = Path().apply {
-            moveTo(c, 0f); lineTo(size.width * 0.35f, 0f); lineTo(size.width * 0.38f, n * 0.5f)
-            lineTo(size.width * 0.62f, n * 0.5f); lineTo(size.width * 0.65f, 0f); lineTo(size.width - c, 0f)
-            lineTo(size.width, c); lineTo(size.width, size.height - c); lineTo(size.width - c, size.height)
-            lineTo(size.width * 0.65f, size.height); lineTo(size.width * 0.62f, size.height - n * 0.5f)
-            lineTo(size.width * 0.38f, size.height - n * 0.5f); lineTo(size.width * 0.35f, size.height)
-            lineTo(c, size.height); lineTo(0f, size.height - c); lineTo(0f, c); close()
-        }
-        drawPath(outer, Brush.radialGradient(listOf(Color(0xFF472186), Color(0xFF1F143B), Color(0xFF0E0B1A)), Offset(size.width / 2f, size.height / 2f), size.maxDimension * 0.65f))
-        drawPath(outer, NeonPurple.copy(alpha = 0.28f), style = Stroke(6.dp.toPx()))
-        drawPath(outer, Brush.verticalGradient(listOf(NeonPurpleGlow, Color(0xFF38BDF8), NeonPurple)), style = Stroke(2.dp.toPx()))
-        val inset = 7.dp.toPx()
-    }, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(30.dp))
+    Surface(
+        modifier = modifier.fillMaxHeight().clickable { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xFF1A0F36),
+        border = BorderStroke(2.dp, Brush.verticalGradient(listOf(NeonPurpleGlow, NeonPurple)))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
             Spacer(Modifier.height(8.dp))
-            Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
 
 @Composable
 fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier = modifier.fillMaxHeight().clickable { onClick() }.drawBehind {
-        val b = 12.dp.toPx()
-        val hud = Path().apply { moveTo(b, 0f); lineTo(size.width - b, 0f); lineTo(size.width, size.height / 2f); lineTo(size.width - b, size.height); lineTo(b, size.height); lineTo(0f, size.height / 2f); close() }
-        drawPath(hud, Brush.horizontalGradient(listOf(Color(0xFF14E026), Color(0xFF2A1A4B), Color(0xFF14E026))))
-        drawPath(hud, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), NeonPurpleGlow, Color(0xFF38BDF8))), style = Stroke(1.6.dp.toPx()))
-    }, contentAlignment = Alignment.Center) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
+    Surface(
+        modifier = modifier.fillMaxHeight().clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF1A0F36),
+        border = BorderStroke(1.5.dp, NeonPurple)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(10.dp))
             Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
+
 @Composable
 fun PlaylistManagerScreen(
     prefs: android.content.SharedPreferences,
@@ -325,7 +336,7 @@ fun PlaylistManagerScreen(
         Surface(
             modifier = Modifier.weight(1.4f).fillMaxHeight(),
             shape = RoundedCornerShape(12.dp),
-            color = CardDark,
+            color = Color(0xFF1A0F36),
             border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(
@@ -375,7 +386,7 @@ fun PlaylistManagerScreen(
         Surface(
             modifier = Modifier.weight(1f).fillMaxHeight(),
             shape = RoundedCornerShape(12.dp),
-            color = CardDark,
+            color = Color(0xFF1A0F36),
             border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -474,8 +485,8 @@ fun MediaBrowserScreen(
     Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(
             modifier = Modifier.weight(1f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1A0F36),
             border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -509,8 +520,8 @@ fun MediaBrowserScreen(
 
         Surface(
             modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1A0F36),
             border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -542,8 +553,8 @@ fun MediaBrowserScreen(
 
         Surface(
             modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1A0F36),
             border = BorderStroke(1.5.dp, NeonPurple)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
