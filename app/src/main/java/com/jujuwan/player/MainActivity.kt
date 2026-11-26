@@ -691,8 +691,10 @@ object PosterCache {
 fun ServerPosterImage(url: String, isMovie: Boolean) {
     val cleanUrl = url.trim().let { if (it.startsWith("//")) "https:$it" else it }
     var bmp by remember(cleanUrl) { mutableStateOf(PosterCache.lru.get(cleanUrl)) }
+    var loading by remember(cleanUrl) { mutableStateOf(bmp == null && cleanUrl.startsWith("http")) }
     LaunchedEffect(cleanUrl) {
         if (bmp == null && cleanUrl.startsWith("http")) {
+            loading = true
             val loaded = withContext(Dispatchers.IO) {
                 FastHttp.imgGate.acquire()
                 try {
@@ -711,6 +713,9 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
                 PosterCache.lru.put(cleanUrl, loaded)
                 bmp = loaded
             }
+            loading = false
+        } else {
+            loading = false
         }
     }
     if (bmp != null) {
@@ -720,6 +725,8 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+    } else if (loading) {
+        CircularProgressIndicator(color = NeonPurpleGlow, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
     } else {
         Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
     }
@@ -736,7 +743,18 @@ fun BadgeChip(label: String) {
 fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(
+            context,
+            androidx.media3.exoplayer.DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+        ).build().apply {
+            setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                true
+            )
+            volume = 1.0f
             setMediaItem(MediaItem.fromUri(url))
             prepare()
             playWhenReady = true
