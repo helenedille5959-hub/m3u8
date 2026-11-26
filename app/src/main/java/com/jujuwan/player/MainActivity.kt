@@ -63,7 +63,6 @@ val NeonPurpleGlow = Color(0xFFD966FF)
 
 
 object ServerCache {
-    var loadedKey: String = ""
     var liveCats: List<CategoryItem> = emptyList()
     var liveStreams: List<StreamItem> = emptyList()
     var movieCats: List<CategoryItem> = emptyList()
@@ -71,6 +70,65 @@ object ServerCache {
     var seriesCats: List<CategoryItem> = emptyList()
     var seriesStreams: List<StreamItem> = emptyList()
     var loadedForUrl: String = ""
+
+    var loadedKey: String = ""
+
+    suspend fun syncAll(
+        acc: PlaylistAccount,
+        onProgress: (String, Float) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        val k = "${acc.url}_${acc.user}"
+        if (loadedKey == k && liveStreams.isNotEmpty()) {
+            onProgress("Données déjà prêtes", 1f)
+            return@withContext
+        }
+        PosterCache.lru.evictAll()
+        FastHttp.streamsMemo.clear()
+        FastHttp.epgMemo.clear()
+
+        onProgress("1/5 • Chargement TV en direct...", 0.15f)
+        liveCats = fetchCategories(acc, "LIVE")
+        liveStreams = fetchStreams(acc, "LIVE", "ALL")
+
+        onProgress("2/5 • Chargement des Films (${liveStreams.size} chaînes)...", 0.35f)
+        movieCats = fetchCategories(acc, "MOVIES")
+        movieStreams = fetchStreams(acc, "MOVIES", "ALL")
+
+        onProgress("3/5 • Chargement des Séries (${movieStreams.size} films)...", 0.55f)
+        seriesCats = fetchCategories(acc, "SERIES")
+        seriesStreams = fetchStreams(acc, "SERIES", "ALL")
+
+        onProgress("4/5 • Chargement du guide EPG...", 0.75f)
+        liveStreams.take(10).forEach { st: StreamItem ->
+            try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {}
+        }
+
+        onProgress("5/5 • Chargement des jaquettes Films & Séries...", 0.88f)
+        val rawIcons: List<String> = movieStreams.take(20).map { st: StreamItem -> st.icon } + seriesStreams.take(20).map { st: StreamItem -> st.icon }
+        val urls: List<String> = rawIcons
+            .map { raw: String -> val s = raw.trim(); if (s.startsWith("//")) "https:$s" else s }
+            .filter { u: String -> u.startsWith("http") }
+            .distinct()
+        urls.forEachIndexed { idx: Int, u: String ->
+            if (PosterCache.lru.get(u) == null) {
+                try {
+                    val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
+                    val b = FastHttp.client.newCall(req).execute().body?.bytes()
+                    if (b != null && b.isNotEmpty()) {
+                        val opts = android.graphics.BitmapFactory.Options().apply {
+                            inSampleSize = 2
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                        }
+                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
+                    }
+                } catch (_: Exception) {}
+            }
+            val pct = 0.85f + (0.15f * (idx + 1).toFloat() / maxOf(1, urls.size))
+            onProgress("5/5 • Jaquettes Films & Séries (${idx + 1}/${urls.size})...", pct)
+        }
+        onProgress("Synchronisation terminée !", 1f)
+        loadedKey = k
+    }
 }
 
 data class PlaylistAccount(val name: String, val url: String, val user: String, val pass: String)
@@ -791,62 +849,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
         }
     }
 }
-suspend fun fetchLiveEpg(
-        acc: PlaylistAccount,
-        onProgress: (String, Float) -> Unit = { _, _ -> }
-    ) = withContext(Dispatchers.IO) {
-        val k = "${acc.url}_${acc.user}"
-        if (loadedKey == k && liveStreams.isNotEmpty()) {
-            onProgress("Données prêtes", 1f)
-            return@withContext
-        }
-        PosterCache.lru.evictAll()
-        FastHttp.streamsMemo.clear()
-        FastHttp.epgMemo.clear()
-
-        onProgress("1/5 • Chargement TV en direct...", 0.15f)
-        liveCats = fetchCategories(acc, "LIVE")
-        liveStreams = fetchStreams(acc, "LIVE", "ALL")
-
-        onProgress("2/5 • Chargement des Films (${liveStreams.size} chaînes)...", 0.35f)
-        movieCats = fetchCategories(acc, "MOVIES")
-        movieStreams = fetchStreams(acc, "MOVIES", "ALL")
-
-        onProgress("3/5 • Chargement des Séries (${movieStreams.size} films)...", 0.55f)
-        seriesCats = fetchCategories(acc, "SERIES")
-        seriesStreams = fetchStreams(acc, "SERIES", "ALL")
-
-        onProgress("4/5 • Chargement du guide EPG...", 0.75f)
-        liveStreams.take(10).forEach { st: StreamItem ->
-            try { fetchLiveEpg(acc, st.id) } catch (_: Exception) {}
-        }
-
-        onProgress("5/5 • Chargement des jaquettes Films & Séries...", 0.88f)
-        val rawIcons: List<String> = movieStreams.take(20).map { st: StreamItem -> st.icon } + seriesStreams.take(20).map { st: StreamItem -> st.icon }
-        val urls: List<String> = rawIcons
-            .map { raw: String -> val s = raw.trim(); if (s.startsWith("//")) "https:$s" else s }
-            .filter { u: String -> u.startsWith("http") }
-            .distinct()
-        urls.forEachIndexed { idx: Int, u: String ->
-            if (PosterCache.lru.get(u) == null) {
-                try {
-                    val req = Request.Builder().url(u).header("User-Agent", "Mozilla/5.0").build()
-                    val b = FastHttp.client.newCall(req).execute().body?.bytes()
-                    if (b != null && b.isNotEmpty()) {
-                        val opts = android.graphics.BitmapFactory.Options().apply {
-                            inSampleSize = 2
-                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
-                        }
-                        android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, opts)?.let { bmp -> PosterCache.lru.put(u, bmp) }
-                    }
-                } catch (_: Exception) {}
-            }
-            val pct = 0.85f + (0.15f * (idx + 1).toFloat() / maxOf(1, urls.size))
-            onProgress("5/5 • Jaquettes Films & Séries (${idx + 1}/${urls.size})...", pct)
-        }
-        onProgress("Synchronisation terminée !", 1f)
-        loadedKey = k
-    }
+suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"; val r = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { (0 until a.length()).joinToString("\n") { i -> val o = a.getJSONObject(i); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val h1 = o.optString("start").substringAfter(" ").take(5); val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5); if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt } } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
