@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -586,13 +587,7 @@ fun MediaBrowserScreen(
                                 val item = filtered[idx]
                                 Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
-                                        if (item.icon.isNotBlank()) {
-                                            AndroidView(factory = { c -> android.widget.ImageView(c).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP } }, update = { iv ->
-                                                Thread { try { val bmp = android.graphics.BitmapFactory.decodeStream(java.net.URL(item.icon).openStream()); iv.post { iv.setImageBitmap(bmp) } } catch (_: Exception) {} }.start()
-                                            }, modifier = Modifier.fillMaxSize())
-                                        } else {
-                                            Icon(if (activeMode == "MOVIES") Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
-                                        }
+                                        ServerPosterImage(item.icon, activeMode == "MOVIES")
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(item.name, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 11.sp)
@@ -659,6 +654,41 @@ fun MediaBrowserScreen(
             }        }
     }
 }
+object PosterCache {
+    val map = java.util.concurrent.ConcurrentHashMap<String, android.graphics.Bitmap>()
+}
+
+@Composable
+fun ServerPosterImage(url: String, isMovie: Boolean) {
+    val cleanUrl = url.trim().let { if (it.startsWith("//")) "https:$it" else it }
+    var bmp by remember(cleanUrl) { mutableStateOf(PosterCache.map[cleanUrl]) }
+    LaunchedEffect(cleanUrl) {
+        if (bmp == null && cleanUrl.startsWith("http")) {
+            val loaded = withContext(Dispatchers.IO) {
+                try {
+                    val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").build()
+                    val bytes = OkHttpClient().newCall(req).execute().body?.bytes()
+                    if (bytes != null) android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+                } catch (_: Exception) { null }
+            }
+            if (loaded != null) {
+                PosterCache.map[cleanUrl] = loaded
+                bmp = loaded
+            }
+        }
+    }
+    if (bmp != null) {
+        androidx.compose.foundation.Image(
+            bitmap = bmp!!.asImageBitmap(),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    } else {
+        Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
+    }
+}
+
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
