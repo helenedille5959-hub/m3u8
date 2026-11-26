@@ -285,10 +285,10 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         drawPath(outer, Brush.verticalGradient(listOf(NeonPurpleGlow, Color(0xFF38BDF8), NeonPurple)), style = Stroke(2.dp.toPx()))
         val inset = 7.dp.toPx()
         val inner = Path().apply {
-            moveTo(c + in * 0.5f, inset); lineTo(size.width - c - inset * 0.5f, inset)
-            lineTo(size.width - in, c + in * 0.5f); lineTo(size.width - in, size.height - c - inset * 0.5f)
-            lineTo(size.width - c - inset * 0.5f, size.height - in); lineTo(c + in * 0.5f, size.height - in)
-            lineTo(inset, size.height - c - inset * 0.5f); lineTo(inset, c + in * 0.5f); close()
+            moveTo(c + inset * 0.5f, inset); lineTo(size.width - c - inset * 0.5f, inset)
+            lineTo(size.width - in, c + inset * 0.5f); lineTo(size.width - in, size.height - c - inset * 0.5f)
+            lineTo(size.width - c - inset * 0.5f, size.height - in); lineTo(c + inset * 0.5f, size.height - in)
+            lineTo(inset, size.height - c - inset * 0.5f); lineTo(inset, c + inset * 0.5f); close()
         }
         drawPath(inner, NeonPurpleGlow.copy(alpha = 0.45f), style = Stroke(1.dp.toPx()))
     }, contentAlignment = Alignment.Center) {
