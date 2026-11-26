@@ -283,12 +283,12 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         drawPath(outer, Brush.radialGradient(listOf(Color(0xFF472186), Color(0xFF1F143B), Color(0xFF0E0B1A)), Offset(size.width / 2f, size.height / 2f), size.maxDimension * 0.65f))
         drawPath(outer, NeonPurple.copy(alpha = 0.28f), style = Stroke(6.dp.toPx()))
         drawPath(outer, Brush.verticalGradient(listOf(NeonPurpleGlow, Color(0xFF38BDF8), NeonPurple)), style = Stroke(2.dp.toPx()))
-        val in = 7.dp.toPx()
+        val inset = 7.dp.toPx()
         val inner = Path().apply {
-            moveTo(c + in * 0.5f, in); lineTo(size.width - c - in * 0.5f, in)
-            lineTo(size.width - in, c + in * 0.5f); lineTo(size.width - in, size.height - c - in * 0.5f)
-            lineTo(size.width - c - in * 0.5f, size.height - in); lineTo(c + in * 0.5f, size.height - in)
-            lineTo(in, size.height - c - in * 0.5f); lineTo(in, c + in * 0.5f); close()
+            moveTo(c + in * 0.5f, inset); lineTo(size.width - c - inset * 0.5f, inset)
+            lineTo(size.width - in, c + in * 0.5f); lineTo(size.width - in, size.height - c - inset * 0.5f)
+            lineTo(size.width - c - inset * 0.5f, size.height - in); lineTo(c + in * 0.5f, size.height - in)
+            lineTo(inset, size.height - c - inset * 0.5f); lineTo(inset, c + in * 0.5f); close()
         }
         drawPath(inner, NeonPurpleGlow.copy(alpha = 0.45f), style = Stroke(1.dp.toPx()))
     }, contentAlignment = Alignment.Center) {
