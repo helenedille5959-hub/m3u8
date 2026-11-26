@@ -509,7 +509,7 @@ fun MediaBrowserScreen(
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
     var streams by remember { mutableStateOf<List<StreamItem>>(emptyList()) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
+    var epgInfo by remember { mutableStateOf("") }; var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -586,7 +586,7 @@ fun MediaBrowserScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (selectedStream == item) NeonPurple.copy(alpha = 0.4f) else BgDark,
                                 border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth().clickable { selectedStream = item }
+                                modifier = Modifier.fillMaxWidth().clickable { selectedStream = item; if (mode == "LIVE") { scope.launch { epgInfo = "Chargement EPG..."; epgInfo = fetchLiveEpg(account, item.id) } } }
                             ) {
                                 Text(item.name, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
                             }
