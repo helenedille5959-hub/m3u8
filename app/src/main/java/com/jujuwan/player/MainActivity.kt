@@ -196,7 +196,7 @@ fun JujuWanMainApp() {
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = androidx.compose.ui.text.style.androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Spacer(Modifier.height(4.dp))
                         StepCheckRow("Chargement des chaînes en direct", "Chaînes chargées", liveStatus)
@@ -292,7 +292,7 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(30.dp))
             Spacer(Modifier.height(8.dp))
-            Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
