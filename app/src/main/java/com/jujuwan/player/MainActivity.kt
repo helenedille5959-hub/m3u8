@@ -51,7 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 val BgDark = Color(0xFF0A0A12)
-val Color(0xFF1A0F36) = Color(0xFF141322)
+val CardDark = Color(0xFF141322)
 val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
