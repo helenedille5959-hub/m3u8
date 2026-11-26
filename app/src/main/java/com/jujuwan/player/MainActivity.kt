@@ -615,7 +615,7 @@ fun MediaBrowserScreen(
                         }
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            text = item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." },
+                            text = if (mode == "LIVE") epgInfo else item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." },
                             color = Color.LightGray,
                             fontSize = 13.sp
                         )
@@ -679,30 +679,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     }
 }
 
-
-suspend fun fetchLiveEpg(acc: PlaylistAccount, streamId: String): Pair<String, String> = withContext(Dispatchers.IO) {
-    try {
-        val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=get_short_epg&stream_id=$streamId&limit=2"
-        val res = OkHttpClient().newCall(Request.Builder().url(apiUrl).build()).execute().body?.string() ?: "{}"
-        val listings = JSONObject(res).optJSONArray("epg_listings") ?: return@withContext Pair("En direct", "Aucune information EPG disponible.")
-        if (listings.length() == 0) return@withContext Pair("En direct", "Aucune information EPG disponible.")
-        val o = listings.getJSONObject(0)
-        val tt = try { String(android.util.Base64.decode(o.optString("title"), 0), Charsets.UTF_8) } catch (_: Exception) { o.optString("title") }
-        val dd = try { String(android.util.Base64.decode(o.optString("description"), 0), Charsets.UTF_8) } catch (_: Exception) { o.optString("description") }
-        val h1 = o.optString("start"). substringAfter(" ").take(5)
-        val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5)
-        val hdr = if (h1.isNotEmpty() && h2.isNotEmpty()) "[$h1 - $h2] $tt" else tt
-        var nextTxt = """
-        if (listings.length() > 1) {
-            val o2 = listings.getJSONObject(1)
-            val ntt = try { String(android.util.Base64.decode(o2.optString("title"), 0), Charsets.UTF_8) } catch (_: Exception) { o2.optString("title") }
-            val nh = o2.optString("start").substringAfter(" ").take(5)
-            if (ntt.isNotEmpty()) nextTxt = ""
-
-        }
-        Pair(hdr.ifBlank { "En direct" }, (dd.ifBlank { "Diffusion en cours sur Juju Wan." }) + nextTxt)
-    } catch (_: Exception) { Pair("En direct", "Guide EPG indisponible.") }
-}
+suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=1"; val r = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { val o = a.getJSONObject(0); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val dd = try { String(android.util.Base64.decode(o.optString("description"), 0)) } catch (_: Exception) { o.optString("description") }; tt + " : " + dd } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
