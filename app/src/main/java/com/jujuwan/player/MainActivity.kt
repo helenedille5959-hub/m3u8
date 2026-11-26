@@ -509,7 +509,7 @@ fun MediaBrowserScreen(
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
     var streams by remember { mutableStateOf<List<StreamItem>>(emptyList()) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var epgInfo by remember { mutableStateOf("") }; var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
+    var epgList by remember { mutableStateOf<List<String>>(emptyList()) }; var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -563,82 +563,20 @@ fun MediaBrowserScreen(
             }
         }
 
-        Surface(
-            modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.5.dp, NeonPurple)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    when (mode) { "LIVE" -> "Chaînes"; "MOVIES" -> "Films"; else -> "Séries" },
-                    color = NeonPurpleGlow, fontWeight = FontWeight.Bold, fontSize = 16.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                if (isLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonPurpleGlow)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(streams) { item ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selectedStream == item) NeonPurple.copy(alpha = 0.4f) else BgDark,
-                                border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth().clickable { selectedStream = item; if (mode == "LIVE") { scope.launch { epgInfo = "Chargement EPG..."; epgInfo = fetchLiveEpg(account, item.id) } } }
-                            ) {
-                                Text(item.name, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier.weight(1.2f).fillMaxHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.5.dp, NeonPurple)
-        ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                if (selectedStream != null) {
-                    val item = selectedStream!!
-                    Column {
-                        Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            BadgeChip("4K / HD")
-                            BadgeChip("HEVC")
-                            BadgeChip("DTS / EAC3")
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = if (mode == "LIVE") epgInfo else item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." },
-                            color = Color.LightGray,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Button(
-                        onClick = { onPlayFullScreen(item.name, item.streamUrl) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, tint = Color.White)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Lancer en plein écran", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Sélectionnez un élément à gauche", color = Color.Gray)
-                    }
-                }
-            }
-        }
-    }
+        Surface(modifier=Modifier.weight(1.35f).fillMaxHeight(),shape=RoundedCornerShape(16.dp),color=CardDark,border=BorderStroke(2.dp,NeonPurple)){
+Column(modifier=Modifier.padding(10.dp),verticalArrangement=Arrangement.SpaceBetween){
+if(selectedStream!=null){val item=selectedStream!!;val ctx=LocalContext.current
+val pv=if(mode=="LIVE")remember(item.streamUrl){ExoPlayer.Builder(ctx).build().apply{setMediaItem(MediaItem.fromUri(item.streamUrl));prepare();playWhenReady=true}}else null
+DisposableEffect(item.streamUrl,mode){onDispose{pv?.release()}}
+Column(modifier=Modifier.weight(1f)){
+if(mode=="LIVE"&&pv!=null){
+Surface(shape=RoundedCornerShape(8.dp),color=Color.Black,border=BorderStroke(1.dp,NeonPurpleGlow),modifier=Modifier.fillMaxWidth().height(105.dp).clickable{pv.release();onPlayFullScreen(item.name,item.streamUrl)}){AndroidView(factory={c->PlayerView(c).apply{player=pv;useController=false}},update={it.player=pv},modifier=Modifier.fillMaxSize())}
+Spacer(Modifier.height(4.dp));Text(item.name,color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold,maxLines=1);Spacer(Modifier.height(4.dp))
+LazyColumn(modifier=Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)){items(epgList){l->Text(l,color=Color(0xFF38BDF8),fontSize=10.sp,maxLines=1)}}
+}else{Text(item.name,color=Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(6.dp));Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){BadgeChip("4K / HD");BadgeChip("HEVC");BadgeChip("DTS / EAC3")};Spacer(Modifier.height(8.dp));Text(item.plot.ifBlank{"Flux prêt sur Juju Wan."},color=Color.LightGray,fontSize=11.sp)}
 }
-
+Button(onClick={pv?.release();onPlayFullScreen(item.name,item.streamUrl)},modifier=Modifier.fillMaxWidth().height(34.dp),contentPadding=PaddingValues(0.dp),colors=ButtonDefaults.buttonColors(containerColor=NeonPurple)){Icon(Icons.Default.PlayArrow,null,tint=Color.White,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lancer en plein écran",color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold)}
+}else{Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text("Sélectionnez une chaîne à gauche",color=Color.Gray,fontSize=12.sp)}}}}
 @Composable
 fun BadgeChip(label: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
@@ -679,7 +617,21 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     }
 }
 
-suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=1"; val r = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { val o = a.getJSONObject(0); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val dd = try { String(android.util.Base64.decode(o.optString("description"), 0)) } catch (_: Exception) { o.optString("description") }; tt + " : " + dd } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
+suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): List<String> = withContext(Dispatchers.IO) {
+    try {
+        val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=8"
+        val res = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"
+        val a = JSONObject(res).optJSONArray("epg_listings") ?: return@withContext listOf("Aucun programme EPG")
+        if (a.length() == 0) return@withContext listOf("Aucun programme EPG")
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }
+            val h1 = o.optString("start").substringAfter(" ").take(5)
+            val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5)
+            if (h1.isNotEmpty() && h2.isNotEmpty()) h1 + " - " + h2 + "  |  " + tt else tt
+        }
+    } catch (_: Exception) { listOf("Guide EPG indisponible") }
+}
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
