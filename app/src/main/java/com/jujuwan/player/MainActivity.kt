@@ -27,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -690,7 +691,7 @@ object PosterCache {
 @Composable
 fun ServerPosterImage(url: String, isMovie: Boolean) {
     val cleanUrl = url.trim().let { if (it.startsWith("//")) "https:$it" else it }
-    var bmp by remember(cleanUrl) { mutableStateOf(PosterCache.lru.get(cleanUrl)) }
+    var bmp by remember(cleanUrl) { mutableStateOf(if (cleanUrl.isNotEmpty()) PosterCache.lru.get(cleanUrl) else null) }
     var loading by remember(cleanUrl) { mutableStateOf(bmp == null && cleanUrl.startsWith("http")) }
     LaunchedEffect(cleanUrl) {
         if (bmp == null && cleanUrl.startsWith("http")) {
@@ -698,9 +699,9 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
             val loaded = withContext(Dispatchers.IO) {
                 FastHttp.imgGate.acquire()
                 try {
-                    val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").header("Accept", "image/*,*/*;q=0.8").build()
+                    val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").build()
                     val bytes = FastHttp.client.newCall(req).execute().body?.bytes()
-                    if (bytes != null) {
+                    if (bytes != null && bytes.isNotEmpty()) {
                         val opts = android.graphics.BitmapFactory.Options().apply {
                             inSampleSize = 2
                             inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
@@ -718,17 +719,19 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
             loading = false
         }
     }
-    if (bmp != null) {
-        androidx.compose.foundation.Image(
-            bitmap = bmp!!.asImageBitmap(),
-            contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-    } else if (loading) {
-        CircularProgressIndicator(color = NeonPurpleGlow, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-    } else {
-        Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(28.dp))
+    Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+        if (bmp != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bmp!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (loading) {
+            CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+        } else {
+            Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(26.dp))
+        }
     }
 }
 
@@ -745,7 +748,9 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     val exoPlayer = remember {
         ExoPlayer.Builder(
             context,
-            androidx.media3.exoplayer.DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+            androidx.media3.exoplayer.DefaultRenderersFactory(context)
+                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                .setEnableDecoderFallback(true)
         ).build().apply {
             setAudioAttributes(
                 androidx.media3.common.AudioAttributes.Builder()
@@ -754,6 +759,9 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
                     .build(),
                 true
             )
+            trackSelectionParameters = trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
+                .build()
             volume = 1.0f
             setMediaItem(MediaItem.fromUri(url))
             prepare()
@@ -782,7 +790,6 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
         }
     }
 }
-
 suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"; val r = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { (0 until a.length()).joinToString("\n") { i -> val o = a.getJSONObject(i); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val h1 = o.optString("start").substringAfter(" ").take(5); val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5); if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt } } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
