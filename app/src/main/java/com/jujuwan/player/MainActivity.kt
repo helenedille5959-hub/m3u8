@@ -696,7 +696,7 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
             val loaded = withContext(Dispatchers.IO) {
                 FastHttp.imgGate.acquire()
                 try {
-                    val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").build()
+                    val req = Request.Builder().url(cleanUrl).header("User-Agent", "Mozilla/5.0").header("Accept", "image/*,*/*;q=0.8").build()
                     val bytes = FastHttp.client.newCall(req).execute().body?.bytes()
                     if (bytes != null) {
                         val opts = android.graphics.BitmapFactory.Options().apply {
@@ -794,7 +794,7 @@ suspend fun fetchStreams(acc: PlaylistAccount, mode: String, catId: String?): Li
                 "MOVIES" -> "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext"
                 else -> "${acc.url}/series/${acc.user}/${acc.pass}/$id.$ext"
             }
-            StreamItem(id, obj.optString("name"), streamLink, obj.optString("plot", ""))
+            StreamItem(id, obj.optString("name"), streamLink, obj.optString("stream_icon", obj.optString("cover", "")), obj.optString("plot")
         }
     } catch (e: Exception) { emptyList() }
 }
