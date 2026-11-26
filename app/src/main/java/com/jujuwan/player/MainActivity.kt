@@ -728,7 +728,11 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
                 modifier = Modifier.fillMaxSize()
             )
         } else if (loading) {
-            CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 8.dp)) {
+                androidx.compose.material3.LinearProgressIndicator(color = Color(0xFF38BDF8), trackColor = Color(0xFF1E1B4B), modifier = Modifier.fillMaxWidth().height(3.dp))
+                Spacer(Modifier.height(5.dp))
+                Text("Chargement...", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+            }
         } else {
             Icon(if (isMovie) Icons.Default.Movie else Icons.Default.VideoLibrary, null, tint = NeonPurpleGlow, modifier = Modifier.size(26.dp))
         }
@@ -749,7 +753,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
         ExoPlayer.Builder(
             context,
             androidx.media3.exoplayer.DefaultRenderersFactory(context)
-                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
                 .setEnableDecoderFallback(true)
         ).build().apply {
             setAudioAttributes(
@@ -763,6 +767,17 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
                 .build()
             volume = 1.0f
+            addListener(object : androidx.media3.common.Player.Listener {
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    val audioGroup = tracks.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                    if (audioGroup != null && !audioGroup.isSelected) {
+                        trackSelectionParameters = trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
+                            .setOverrideForType(androidx.media3.common.TrackSelectionOverride(audioGroup.mediaTrackGroup, 0))
+                            .build()
+                    }
+                }
+            })
             setMediaItem(MediaItem.fromUri(url))
             prepare()
             playWhenReady = true
