@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
@@ -295,7 +297,7 @@ fun NeonMainCard(title: String, icon: ImageVector, modifier: Modifier, onClick: 
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
             Icon(icon, null, tint = Color(0xFFF0D8FF), modifier = Modifier.size(24.dp))
             Spacer(Modifier.height(6.dp))
-            Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(title, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
@@ -312,7 +314,7 @@ fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClic
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp)) {
             Icon(icon, null, tint = NeonPurpleGlow, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(8.dp))
-            Text(text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(text, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -362,13 +364,13 @@ fun PlaylistManagerScreen(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = if (!isM3uMode) NeonPurple else BgDark)
-                    ) { Text("Xtream Codes API", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("Xtream Codes API", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold) }
                     Button(
                         onClick = { isM3uMode = true },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = if (isM3uMode) NeonPurple else BgDark)
-                    ) { Text("Lien M3U (Auto)", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("Lien M3U (Auto)", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold) }
                 }
 
                 if (isM3uMode) {
@@ -382,7 +384,7 @@ fun PlaylistManagerScreen(
                             modifier = Modifier.height(34.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8))
-                        ) { Text("Coller", color = BgDark, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        ) { Text("Coller", color = BgDark, fontSize = 9.5.sp, fontWeight = FontWeight.Bold) }
                     }
                     Text(
                         text = if (url.isNotEmpty() && user.isNotEmpty()) "Détecté : $url  |  User : $user" else "Le serveur, l'utilisateur et le mot de passe seront remplis automatiquement.",
@@ -483,7 +485,7 @@ fun SlimInputBox(value: String, onValueChange: (String) -> Unit, placeholder: St
             contentAlignment = Alignment.CenterStart
         ) {
             if (value.isEmpty()) {
-                Text(placeholder, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
+                Text(placeholder, color = Color.Gray, fontSize = 9.5.sp, maxLines = 1)
             }
             BasicTextField(
                 value = value,
@@ -605,14 +607,14 @@ fun MediaBrowserScreen(
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                 if (selectedStream != null) {
                     val item = selectedStream!!
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         if (mode == "LIVE") {
                             val ctx = LocalContext.current
                             val pv = remember(item.streamUrl) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(item.streamUrl)); prepare(); playWhenReady = true } }
                             DisposableEffect(item.streamUrl) { onDispose { pv.release() } }
-                            AndroidView(factory = { c -> PlayerView(c).apply { player = pv; useController = false } }, update = { it.player = pv }, modifier = Modifier.fillMaxWidth().height(90.dp).clickable { pv.release(); onPlayFullScreen(item.name, item.streamUrl) })
+                            AndroidView(factory = { c -> PlayerView(c).apply { player = pv; useController = false } }, update = { it.player = pv }, modifier = Modifier.fillMaxWidth().height(85.dp).clickable { pv.release(); onPlayFullScreen(item.name, item.streamUrl) })
                         } else {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             BadgeChip("4K / HD")
@@ -621,15 +623,35 @@ fun MediaBrowserScreen(
                         }
                         }
                         Spacer(Modifier.height(12.dp))
-                        if (mode == "LIVE") {
-                            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                items(epgInfo.split("\n")) { line ->
-                                    Text(line, color = Color(0xFF38BDF8), fontSize = 9.5.sp, lineHeight = 12.sp)
-                                }
-                            }
-                        } else {
-                            Text(item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." }, color = Color.LightGray, fontSize = 11.sp)
-                        })
+                        Text(
+                            text = if (mode == "LIVE") epgInfo else item.plot.ifBlank { "Flux prêt pour la lecture haute définition sur Juju Wan." },
+                            color = Color.LightGray,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Button(
+                        onClick = { onPlayFullScreen(item.name, item.streamUrl) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Lancer en plein écran", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Sélectionnez un élément à gauche", color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BadgeChip(label: String) {
+    Surface(shape = RoundedCornerShape(6.dp), color = BgDark, border = BorderStroke(1.dp, NeonPurpleGlow)) {
+        Text(label, color = NeonPurpleGlow, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
     }
 }
 
@@ -666,29 +688,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     }
 }
 
-suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) {
-    try {
-        val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"
-        val r = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"
-        val a = JSONObject(r).optJSONArray("epg_listings") ?: return@withContext "Aucun EPG disponible"
-        if (a.length() == 0) return@withContext "Aucun EPG disponible"
-        val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-        val nowSec = System.currentTimeMillis() / 1000L
-        val lines = mutableListOf<String>()
-        for (i in 0 until a.length()) {
-            val o = a.getJSONObject(i)
-            val stopTs = o.optLong("stop_timestamp", 0L)
-            if (stopTs > 0L && stopTs < nowSec) continue
-            val startTs = o.optLong("start_timestamp", 0L)
-            val h1 = if (startTs > 0L) fmt.format(java.util.Date(startTs * 1000L)) else o.optString("start").substringAfter(" ").take(5)
-            val h2 = if (stopTs > 0L) fmt.format(java.util.Date(stopTs * 1000L)) else o.optString("end", o.optString("stop")).substringAfter(" ").take(5)
-            val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }
-            val line = if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt
-            if (line.isNotBlank() && !lines.contains(line)) lines.add(line)
-        }
-        if (lines.isEmpty()) "Aucun programme à venir" else lines.joinToString("\n")
-    } catch (_: Exception) { "EPG indisponible" }
-}
+suspend fun fetchLiveEpg(acc: PlaylistAccount, sid: String): String = withContext(Dispatchers.IO) { try { val u = acc.url + "/player_api.php?username=" + acc.user + "&password=" + acc.pass + "&action=get_short_epg&stream_id=" + sid + "&limit=15"; val r = OkHttpClient().newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"; val a = JSONObject(r).optJSONArray("epg_listings"); if (a != null && a.length() > 0) { (0 until a.length()).joinToString("\n") { i -> val o = a.getJSONObject(i); val tt = try { String(android.util.Base64.decode(o.optString("title"), 0)) } catch (_: Exception) { o.optString("title") }; val h1 = o.optString("start").substringAfter(" ").take(5); val h2 = o.optString("end", o.optString("stop")).substringAfter(" ").take(5); if (h1.isNotEmpty() && h2.isNotEmpty()) "$h1 - $h2  |  $tt" else tt } } else "Aucun EPG disponible" } catch (_: Exception) { "EPG indisponible" } }
 suspend fun fetchCategories(acc: PlaylistAccount, action: String): List<CategoryItem> = withContext(Dispatchers.IO) {
     try {
         val apiUrl = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
@@ -747,7 +747,7 @@ fun CompactField(value: String, onChange: (String) -> Unit, hint: String, isPass
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
-        placeholder = { Text(hint, fontSize = 11.sp, maxLines = 1) },
+        placeholder = { Text(hint, fontSize = 9.5.sp, maxLines = 1) },
         singleLine = true,
         textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
         visualTransformation = if (isPass) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
