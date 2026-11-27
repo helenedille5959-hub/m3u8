@@ -310,6 +310,7 @@ fun JujuWanMainApp() {
                         "LIVE" -> "Télévision en direct"
                         "MOVIES" -> "Films"
                         "SERIES" -> "Séries"
+                        "SETTINGS" -> "Réglage de l'application"
                         else -> ""
                     }
                     Text(subtitle, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -439,7 +440,7 @@ fun JujuWanMainApp() {
                     activeAccount?.let { acc -> ServerCache.clearDiskCache(context, acc); refreshTrigger++ }
                         ?: Toast.makeText(context, "Ajoutez d'abord une playlist serveur", Toast.LENGTH_SHORT).show()
                 },
-                onOpenSettings = { showSettingsDialog = true }
+                onOpenSettings = { currentScreen = "SETTINGS" }
             )
 
             "PLAYLISTS" -> PlaylistManagerScreen(
@@ -477,6 +478,20 @@ fun JujuWanMainApp() {
                 onBack = { currentScreen = "HOME" }
             )
         }
+            "SETTINGS" -> SettingsScreen(
+                autoUpdateDays = autoUpdateDays,
+                onSelectAutoUpdate = { daysVal ->
+                    autoUpdateDays = daysVal
+                    prefs.edit().putInt("auto_update_days", daysVal).apply()
+                },
+                onBack = { currentScreen = "HOME" }
+            )
+
+            "PLAYER" -> FullScreenVideoPlayer(
+                title = playingTitle,
+                url = playingUrl,
+                onBack = { currentScreen = "HOME" }
+            )
         if (showSettingsDialog) {
             androidx.compose.ui.window.Dialog(onDismissRequest = { showSettingsDialog = false }) {
                 Surface(
@@ -537,6 +552,126 @@ fun JujuWanMainApp() {
             }
         }
 
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    autoUpdateDays: Int,
+    onSelectAutoUpdate: (Int) -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedTab by remember { mutableStateOf("AUTO_UPDATE") }
+
+    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Colonne gauche : Onglets des réglages + Retour
+        Box(
+            modifier = Modifier
+                .weight(0.85f)
+                .fillMaxHeight()
+                .hudFrame(active = false, cutDp = 10f)
+                .padding(10.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paramètres", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .hudFrame(active = selectedTab == "AUTO_UPDATE", cutDp = 7f)
+                            .clickable { selectedTab = "AUTO_UPDATE" }
+                            .padding(horizontal = 10.dp, vertical = 9.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Refresh, null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Mise à jour automatique",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp)
+                        .hudFrame(active = false, cutDp = 8f)
+                        .clickable { onBack() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Retour à l'accueil", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Colonne droite : Contenu de l'onglet sélectionné
+        Box(
+            modifier = Modifier
+                .weight(1.65f)
+                .fillMaxHeight()
+                .hudFrame(active = false, cutDp = 12f)
+                .padding(14.dp)
+        ) {
+            if (selectedTab == "AUTO_UPDATE") {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "Mise à jour automatique du contenu",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        "Choisissez la fréquence d'actualisation automatique (calculée à chaque changement de journée à 00h00) :",
+                        color = Color.LightGray,
+                        fontSize = 10.5.sp
+                    )
+
+                    val options = listOf(
+                        1 to "Tous les jours",
+                        2 to "Tous les 2 jours",
+                        3 to "Tous les 3 jours",
+                        0 to "Jamais"
+                    )
+                    options.forEach { (daysVal, label) ->
+                        val isSelected = autoUpdateDays == daysVal
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .hudFrame(active = isSelected, cutDp = 7f)
+                                .clickable { onSelectAutoUpdate(daysVal) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                label,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (isSelected) {
+                                Text("✓ Activé", color = Color(0xFF4ADE80), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
