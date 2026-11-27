@@ -227,5 +227,4 @@ fun JujuWanMainApp() {
 
     var currentDateTime by remember { mutableStateOf("") }
 
-git add app/src/main/java/com/jujuwan/player/MainActivity.kt && git commit -m "Fix chargement complet" && git push
 
