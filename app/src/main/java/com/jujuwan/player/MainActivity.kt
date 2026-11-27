@@ -485,10 +485,7 @@ fun JujuWanMainApp() {
                 onBack = { currentScreen = "HOME" }
             )
         }
-
     }
-}
-
 }
 
 @Composable
