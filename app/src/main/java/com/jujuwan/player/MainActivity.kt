@@ -489,9 +489,6 @@ fun JujuWanMainApp() {
     }
 }
 
-    }
-}
-
 @Composable
 fun SettingsScreen(
     autoUpdateDays: Int,
