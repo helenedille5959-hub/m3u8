@@ -238,8 +238,8 @@ fun JujuWanMainApp() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark)
-            .padding(12.dp)
+            .background(if (currentScreen == "PLAYER") Color.Black else BgDark)
+            .padding(if (currentScreen == "PLAYER") 0.dp else 12.dp)
     ) {
         if (currentScreen != "PLAYER") {
             Row(
@@ -1240,7 +1240,20 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            factory = { PlayerView(it).apply { player = exoPlayer; useController = !url.endsWith(".m3u8") } },
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = !url.endsWith(".m3u8")
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setFullscreenButtonClickListener { isFull ->
+                        resizeMode = if (isFull) {
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        } else {
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    }
+                }
+            },
             modifier = Modifier.fillMaxSize().clipToBounds()
         )
         Row(
