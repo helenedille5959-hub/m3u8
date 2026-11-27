@@ -649,7 +649,7 @@ fun NeonBottomButton(text: String, icon: ImageVector, modifier: Modifier, onClic
 @Composable
 fun PlaylistManagerScreen(
     prefs: android.content.SharedPreferences,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     onSelectAccount: (PlaylistAccount) -> Unit
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -983,7 +983,7 @@ fun SeriesDetailScreen(
     isFavorite: Boolean,
     prefs: android.content.SharedPreferences,
     onToggleFavorite: () -> Unit,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     onPlayEpisode: (String, String) -> Unit
 ) {
     var details by remember(item.id) {
@@ -1132,7 +1132,7 @@ fun MovieDetailScreen(
     isFavorite: Boolean,
     savedPositionMs: Long,
     onToggleFavorite: () -> Unit,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     onPlay: (String, String) -> Unit
 ) {
     var details by remember(item.id) {
@@ -1283,7 +1283,7 @@ fun MovieDetailScreen(
 fun MediaBrowserScreen(
     mode: String,
     account: PlaylistAccount,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     onPlayFullScreen: (String, String) -> Unit,
     onSwitchMode: (String) -> Unit = {}
 ) {
@@ -1555,7 +1555,7 @@ fun BadgeChip(label: String) {
 }
 
 @Composable
-fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
+fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("juju_wan_data", Context.MODE_PRIVATE) }
     val isLiveStream = url.endsWith(".m3u8") || url.endsWith(".ts")
