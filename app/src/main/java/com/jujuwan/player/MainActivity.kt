@@ -938,30 +938,6 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
-            Button(
-                onClick = {
-                    val audioGroups = exoPlayer.currentTracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
-                    if (audioGroups.isNotEmpty()) {
-                        audioIndex = (audioIndex + 1) % audioGroups.size
-                        val chosenGroup = audioGroups[audioIndex]
-                        val fmt = chosenGroup.getTrackFormat(0)
-                        val lang = fmt.language ?: "Piste ${audioIndex + 1}"
-                        val codec = fmt.sampleMimeType?.substringAfter("/")?.uppercase() ?: ""
-                        audioInfo = "Audio: $lang ($codec)"
-                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
-                            .setOverrideForType(androidx.media3.common.TrackSelectionOverride(chosenGroup.mediaTrackGroup, 0))
-                            .build()
-                    } else {
-                        Toast.makeText(context, "Aucune autre piste audio détectée", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CardDark.copy(alpha = 0.85f)),
-                border = BorderStroke(1.dp, NeonPurpleGlow)
-            ) {
-                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(audioInfo, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
