@@ -492,7 +492,7 @@ fun JujuWanMainApp() {
 fun SettingsScreen(
     autoUpdateDays: Int,
     onSelectAutoUpdate: (Int) -> Unit,
-    onBack: () -> Unit = {} = {}
+    onBack: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf("AUTO_UPDATE") }
 
