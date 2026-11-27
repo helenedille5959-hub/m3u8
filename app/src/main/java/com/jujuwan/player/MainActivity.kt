@@ -179,7 +179,7 @@ object ServerCache {
         }
 
         onStep(6, "Tout est prêt !", 1f)
-        kotlinx.coroutines.delay(400)
+        kotlinx.coroutines.delay(1500)
         loadedKey = k
         isReady = true
     }
@@ -303,12 +303,12 @@ fun JujuWanMainApp() {
                 shape = RoundedCornerShape(16.dp),
                 color = CardDark,
                 border = BorderStroke(1.5.dp, NeonPurpleGlow),
-                modifier = Modifier.width(460.dp).padding(12.dp)
+                modifier = Modifier.width(480.dp).padding(12.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 22.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     Text(
                         "Le contenu de votre serveur charge pour la première fois, cela va prendre un certain moment...",
@@ -324,29 +324,49 @@ fun JujuWanMainApp() {
                         4 to "Chargement du guide EPG",
                         5 to "Chargement des jaquettes films & séries"
                     )
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         stepsList.forEach { (stNum, stTitle) ->
                             val done = syncStep > stNum
                             val active = syncStep == stNum
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                if (done) {
-                                    Text("✓", color = Color(0xFF38BDF8), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
-                                } else if (active) {
-                                    CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
-                                } else {
-                                    Surface(
-                                        modifier = Modifier.size(14.dp),
-                                        shape = androidx.compose.foundation.shape.CircleShape,
-                                        color = Color.Transparent,
-                                        border = BorderStroke(1.dp, Color.Gray)
-                                    ) {}
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (done) {
+                                        Text("✓", color = Color(0xFF4ADE80), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                    } else if (active) {
+                                        CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+                                    } else {
+                                        Surface(
+                                            modifier = Modifier.size(14.dp),
+                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                            color = Color.Transparent,
+                                            border = BorderStroke(1.dp, Color.Gray)
+                                        ) {}
+                                    }
+                                    Text(
+                                        stTitle,
+                                        color = if (done || active) Color.White else Color.Gray,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (active || done) FontWeight.SemiBold else FontWeight.Normal
+                                    )
                                 }
-                                Text(
-                                    stTitle,
-                                    color = if (done || active) Color.White else Color.Gray,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
-                                )
+                                if (done) {
+                                    Text(
+                                        "OK",
+                                        color = Color(0xFF4ADE80),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                } else if (active) {
+                                    Text(
+                                        "En cours...",
+                                        color = Color(0xFF38BDF8),
+                                        fontSize = 10.sp
+                                    )
+                                }
                             }
                         }
                     }
