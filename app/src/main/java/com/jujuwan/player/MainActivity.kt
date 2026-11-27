@@ -477,7 +477,6 @@ fun JujuWanMainApp() {
                 url = playingUrl,
                 onBack = { currentScreen = "HOME" }
             )
-        }
             "SETTINGS" -> SettingsScreen(
                 autoUpdateDays = autoUpdateDays,
                 onSelectAutoUpdate = { daysVal ->
@@ -486,74 +485,7 @@ fun JujuWanMainApp() {
                 },
                 onBack = { currentScreen = "HOME" }
             )
-
-            "PLAYER" -> FullScreenVideoPlayer(
-                title = playingTitle,
-                url = playingUrl,
-                onBack = { currentScreen = "HOME" }
-            )
-        if (showSettingsDialog) {
-            androidx.compose.ui.window.Dialog(onDismissRequest = { showSettingsDialog = false }) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardDark,
-                    border = BorderStroke(1.5.dp, NeonPurpleGlow),
-                    modifier = Modifier.width(440.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("Réglage de l'application", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Décodeur Universel 4K / HDR / DTS / FFmpeg : Activé", color = Color(0xFF4ADE80), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        HorizontalDivider(color = NeonPurple.copy(alpha = 0.4f))
-                        Text("Mise à jour automatique du contenu :", color = Color(0xFF38BDF8), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-
-                        val options = listOf(
-                            1 to "Tous les jours",
-                            2 to "Tous les 2 jours",
-                            3 to "Tous les 3 jours",
-                            0 to "Jamais"
-                        )
-                        options.forEach { (daysVal, label) ->
-                            val selected = autoUpdateDays == daysVal
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .hudFrame(active = selected, cutDp = 6f)
-                                    .clickable {
-                                        autoUpdateDays = daysVal
-                                        prefs.edit().putInt("auto_update_days", daysVal).apply()
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(label, color = Color.White, fontSize = 11.5.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                                if (selected) {
-                                    Text("✓", color = Color(0xFF4ADE80), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(34.dp)
-                                .hudFrame(active = true, cutDp = 8f)
-                                .clickable { showSettingsDialog = false },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Fermer", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
         }
-
-    }
-}
 
 @Composable
 fun SettingsScreen(
