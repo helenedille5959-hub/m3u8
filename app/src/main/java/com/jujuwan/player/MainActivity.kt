@@ -676,6 +676,62 @@ fun Modifier.hudFrame(active: Boolean = false, cutDp: Float = 10f): Modifier = t
     drawLine(Color(0xFF38BDF8), Offset(w - c - tk, h - 2.dp.toPx()), Offset(w - c, h - 2.dp.toPx()), 1.5.dp.toPx())
 }
 
+fun getFavoritesKey(account: PlaylistAccount, mode: String): String =
+    "favs_${mode}_${account.url}_${account.user}"
+
+fun getResumeKey(account: PlaylistAccount, mode: String): String =
+    "resume_${mode}_${account.url}_${account.user}"
+
+fun getPositionKey(url: String): String = "pos_${url.hashCode()}"
+
+fun loadSavedItemList(prefs: android.content.SharedPreferences, key: String): List<StreamItem> {
+    return try {
+        val raw = prefs.getString(key, "[]") ?: "[]"
+        val arr = JSONArray(raw)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            StreamItem(o.optString("id"), o.optString("name"), o.optString("streamUrl"), o.optString("icon", ""), o.optString("plot", ""))
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
+fun saveItemList(prefs: android.content.SharedPreferences, key: String, list: List<StreamItem>) {
+    val arr = JSONArray()
+    list.forEach { item ->
+        arr.put(JSONObject().apply {
+            put("id", item.id); put("name", item.name); put("streamUrl", item.streamUrl); put("icon", item.icon); put("plot", item.plot)
+        })
+    }
+    prefs.edit().putString(key, arr.toString()).apply()
+}
+
+fun loadFavorites(prefs: android.content.SharedPreferences, account: PlaylistAccount, mode: String): List<StreamItem> =
+    loadSavedItemList(prefs, getFavoritesKey(account, mode))
+
+fun toggleFavoriteItem(prefs: android.content.SharedPreferences, account: PlaylistAccount, mode: String, item: StreamItem): List<StreamItem> {
+    val current = loadFavorites(prefs, account, mode)
+    val exists = current.any { it.id == item.id && it.streamUrl == item.streamUrl }
+    val updated = if (exists) current.filterNot { it.id == item.id && it.streamUrl == item.streamUrl } else listOf(item) + current
+    saveItemList(prefs, getFavoritesKey(account, mode), updated)
+    return updated
+}
+
+fun loadResumeList(prefs: android.content.SharedPreferences, account: PlaylistAccount, mode: String): List<StreamItem> =
+    loadSavedItemList(prefs, getResumeKey(account, mode))
+
+fun recordResumeItem(prefs: android.content.SharedPreferences, account: PlaylistAccount, mode: String, item: StreamItem) {
+    val key = getResumeKey(account, mode)
+    val current = loadSavedItemList(prefs, key).filterNot { it.id == item.id && it.streamUrl == item.streamUrl }
+    saveItemList(prefs, key, (listOf(item) + current).take(30))
+}
+
+fun formatDurationMs(ms: Long): String {
+    if (ms <= 0L) return ""
+    val totalSec = ms / 1000L
+    val h = totalSec / 3600L; val m = (totalSec % 3600L) / 60L; val sec = totalSec % 60L
+    return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%02d:%02d", m, sec)
+}
+
 data class VodDetails(
     val title: String,
     val poster: String,
@@ -720,6 +776,9 @@ suspend fun fetchVodDetails(acc: PlaylistAccount, item: StreamItem): VodDetails 
 fun MovieDetailScreen(
     account: PlaylistAccount,
     item: StreamItem,
+    isFavorite: Boolean,
+    savedPositionMs: Long,
+    onToggleFavorite: () -> Unit,
     onBack: () -> Unit,
     onPlay: (String, String) -> Unit
 ) {
@@ -843,18 +902,18 @@ fun MovieDetailScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Lancer le film", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(if (savedPositionMs > 5000L) "Reprendre (${formatDurationMs(savedPositionMs)})" else "Lancer le film", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                         }
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .weight(0.8f)
-                            .fillMaxHeight()
-                            .hudFrame(active = false, cutDp = 8f)
-                            .clickable { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.weight(0.85f).fillMaxHeight().hudFrame(active = isFavorite, cutDp = 8f).clickable { onToggleFavorite() }, contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = if (isFavorite) Color(0xFFFACC15) else Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(if (isFavorite) "Favori" else "Favoris", color = if (isFavorite) Color(0xFFFACC15) else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Box(modifier = Modifier.weight(0.75f).fillMaxHeight().hudFrame(active = false, cutDp = 8f).clickable { onBack() }, contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(6.dp))
@@ -875,8 +934,12 @@ fun MediaBrowserScreen(
     onPlayFullScreen: (String, String) -> Unit,
     onSwitchMode: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("juju_wan_data", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
     var activeMode by remember(mode) { mutableStateOf(mode) }
+    var favoriteItems by remember(account, activeMode) { mutableStateOf(loadFavorites(prefs, account, activeMode)) }
+    var resumeItems by remember(account, activeMode) { mutableStateOf(loadResumeList(prefs, account, activeMode)) }
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
     var streams by remember { mutableStateOf<List<StreamItem>>(emptyList()) }
     var selectedCategory by remember { mutableStateOf<String?>("ALL") }
@@ -888,7 +951,10 @@ fun MediaBrowserScreen(
 
     LaunchedEffect(activeMode) {
         selectedCategory = "ALL"
-        categories = when (activeMode) { "LIVE" -> ServerCache.liveCats; "MOVIES" -> ServerCache.movieCats; else -> ServerCache.seriesCats }
+        favoriteItems = loadFavorites(prefs, account, activeMode)
+        resumeItems = loadResumeList(prefs, account, activeMode)
+        val baseCats = when (activeMode) { "LIVE" -> ServerCache.liveCats; "MOVIES" -> ServerCache.movieCats; else -> ServerCache.seriesCats }
+        categories = listOf(CategoryItem("FAVORITES", "★ Favoris"), CategoryItem("RESUME", "▶ Reprendre la lecture")) + baseCats
         streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
     }
 
@@ -914,7 +980,10 @@ fun MediaBrowserScreen(
                         val isSel = selectedCategory == cat.id
                         Box(modifier = Modifier.fillMaxWidth().hudFrame(active = isSel, cutDp = 5f).clickable {
                             selectedCategory = cat.id
-                            if (cat.id == "ALL") streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
+                            selectedMovieDetail = null
+                            if (cat.id == "FAVORITES") { favoriteItems = loadFavorites(prefs, account, activeMode); streams = favoriteItems }
+                            else if (cat.id == "RESUME") { resumeItems = loadResumeList(prefs, account, activeMode); streams = resumeItems }
+                            else if (cat.id == "ALL") streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
                             else scope.launch { isLoading = true; streams = fetchStreams(account, activeMode, cat.id); isLoading = false }
                         }.padding(horizontal = 8.dp, vertical = 5.dp)) {
                             Text(cat.name, color = if (isSel) Color.White else Color.LightGray, fontSize = 9.5.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
@@ -923,11 +992,24 @@ fun MediaBrowserScreen(
                 }
             }
             if (activeMode == "MOVIES" && selectedMovieDetail != null) {
+                val cur = selectedMovieDetail!!
+                val isFavM = favoriteItems.any { it.id == cur.id && it.streamUrl == cur.streamUrl }
                 MovieDetailScreen(
                     account = account,
-                    item = selectedMovieDetail!!,
+                    item = cur,
+                    isFavorite = isFavM,
+                    savedPositionMs = prefs.getLong(getPositionKey(cur.streamUrl), 0L),
+                    onToggleFavorite = {
+                        favoriteItems = toggleFavoriteItem(prefs, account, activeMode, cur)
+                        if (selectedCategory == "FAVORITES") streams = favoriteItems
+                        Toast.makeText(context, if (!isFavM) "Ajouté aux favoris" else "Retiré des favoris", Toast.LENGTH_SHORT).show()
+                    },
                     onBack = { selectedMovieDetail = null },
-                    onPlay = { t, u -> onPlayFullScreen(t, u) }
+                    onPlay = { t, u ->
+                        recordResumeItem(prefs, account, activeMode, cur)
+                        resumeItems = loadResumeList(prefs, account, activeMode)
+                        onPlayFullScreen(t, u)
+                    }
                 )
             } else if (activeMode != "LIVE") {
                 Box(modifier = Modifier.weight(2.8f).fillMaxHeight().hudFrame(active = false, cutDp = 12f).padding(8.dp)) {
@@ -937,9 +1019,20 @@ fun MediaBrowserScreen(
                         LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 95.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(count = filtered.size, key = { idx -> "${activeMode}_${filtered[idx].id}_$idx" }) { idx ->
                                 val item = filtered[idx]
-                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { if (activeMode == "MOVIES") selectedMovieDetail = item else onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { if (activeMode == "MOVIES") selectedMovieDetail = item else { recordResumeItem(prefs, account, activeMode, item); resumeItems = loadResumeList(prefs, account, activeMode); onPlayFullScreen(item.name, item.streamUrl) } }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    val isFav = favoriteItems.any { it.id == item.id && it.streamUrl == item.streamUrl }
+                                    val savedP = prefs.getLong(getPositionKey(item.streamUrl), 0L)
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
                                         ServerPosterImage(url = item.icon, isMovie = (activeMode == "MOVIES"))
+                                        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(BgDark.copy(alpha = 0.78f), RoundedCornerShape(50)).clickable {
+                                            favoriteItems = toggleFavoriteItem(prefs, account, activeMode, item)
+                                            if (selectedCategory == "FAVORITES") streams = favoriteItems
+                                        }, contentAlignment = Alignment.Center) {
+                                            Icon(if (isFav) Icons.Default.Star else Icons.Default.StarBorder, null, tint = if (isFav) Color(0xFFFACC15) else Color.White, modifier = Modifier.size(14.dp))
+                                        }
+                                        if (savedP > 5000L) {
+                                            Text("▶ ${formatDurationMs(savedP)}", color = Color(0xFF38BDF8), fontSize = 8.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).background(BgDark.copy(alpha = 0.85f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp))
+                                        }
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(item.name, color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 11.sp)
@@ -1090,6 +1183,9 @@ fun BadgeChip(label: String) {
 @Composable
 fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("juju_wan_data", Context.MODE_PRIVATE) }
+    val isLiveStream = url.endsWith(".m3u8") || url.endsWith(".ts")
+    val savedStartPos = remember(url) { if (isLiveStream) 0L else prefs.getLong(getPositionKey(url), 0L) }
     var audioInfo by remember { mutableStateOf("Audio: Auto") }
     var audioIndex by remember { mutableIntStateOf(0) }
 
@@ -1111,13 +1207,35 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
                 .build()
             volume = 1.0f
             setMediaItem(MediaItem.fromUri(url))
+            if (savedStartPos > 5000L) seekTo(savedStartPos)
             prepare()
             playWhenReady = true
         }
     }
 
+    LaunchedEffect(exoPlayer, url) {
+        if (!isLiveStream) {
+            while (true) {
+                delay(3000)
+                val pos = exoPlayer.currentPosition; val dur = exoPlayer.duration
+                if (pos > 5000L) {
+                    if (dur > 0L && pos >= dur - 15000L) prefs.edit().remove(getPositionKey(url)).apply()
+                    else prefs.edit().putLong(getPositionKey(url), pos).apply()
+                }
+            }
+        }
+    }
     DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
+        onDispose {
+            if (!isLiveStream) {
+                val pos = exoPlayer.currentPosition; val dur = exoPlayer.duration
+                if (pos > 5000L) {
+                    if (dur > 0L && pos >= dur - 15000L) prefs.edit().remove(getPositionKey(url)).apply()
+                    else prefs.edit().putLong(getPositionKey(url), pos).apply()
+                }
+            }
+            exoPlayer.release()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
