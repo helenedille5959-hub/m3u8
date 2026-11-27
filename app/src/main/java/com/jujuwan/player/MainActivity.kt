@@ -63,6 +63,16 @@ val NeonPurple = Color(0xFFB829EA)
 val NeonPurpleGlow = Color(0xFFD966FF)
 
 
+fun getCalendarEpochDay(): Long {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return cal.timeInMillis / 86_400_000L
+}
+
 object ServerCache {
     var liveCats: List<CategoryItem> = emptyList()
     var liveStreams: List<StreamItem> = emptyList()
@@ -108,6 +118,10 @@ object ServerCache {
                 put("seriesCats", catsToJson(seriesCats)); put("seriesStreams", streamsToJson(seriesStreams))
             }
             cacheFile(context, acc).writeText(root.toString())
+            context.getSharedPreferences("juju_wan_data", Context.MODE_PRIVATE)
+                .edit()
+                .putLong("last_sync_day_${acc.url}_${acc.user}", getCalendarEpochDay())
+                .apply()
         } catch (_: Exception) {}
     }
 
@@ -309,11 +323,17 @@ fun JujuWanMainApp() {
         var syncLabel by remember { mutableStateOf("Chargement des chaînes en direct...") }
         var syncProgress by remember { mutableStateOf(0.1f) }
         var refreshTrigger by remember { mutableIntStateOf(0) }
+        var showSettingsDialog by remember { mutableStateOf(false) }
+        var autoUpdateDays by remember { mutableIntStateOf(prefs.getInt("auto_update_days", 0)) }
 
         LaunchedEffect(activeAccount, refreshTrigger) {
             val acc = activeAccount
             if (acc != null) {
-                val alreadyLoaded = (refreshTrigger == 0) && (
+                val autoDays = prefs.getInt("auto_update_days", 0)
+                val lastSyncDay = prefs.getLong("last_sync_day_${acc.url}_${acc.user}", -1L)
+                val today = getCalendarEpochDay()
+                val isExpired = (autoDays > 0) && (lastSyncDay >= 0L) && ((today - lastSyncDay) >= autoDays.toLong())
+                val alreadyLoaded = (refreshTrigger == 0) && !isExpired && (
                     (ServerCache.isReady && ServerCache.loadedKey == "${acc.url}_${acc.user}") ||
                     ServerCache.tryLoadFromDisk(context, acc)
                 )
@@ -419,7 +439,7 @@ fun JujuWanMainApp() {
                     activeAccount?.let { acc -> ServerCache.clearDiskCache(context, acc); refreshTrigger++ }
                         ?: Toast.makeText(context, "Ajoutez d'abord une playlist serveur", Toast.LENGTH_SHORT).show()
                 },
-                onOpenSettings = { Toast.makeText(context, "Décodeur Universel 4K/HDR/DTS Activé", Toast.LENGTH_SHORT).show() }
+                onOpenSettings = { showSettingsDialog = true }
             )
 
             "PLAYLISTS" -> PlaylistManagerScreen(
@@ -457,6 +477,66 @@ fun JujuWanMainApp() {
                 onBack = { currentScreen = "HOME" }
             )
         }
+        if (showSettingsDialog) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { showSettingsDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CardDark,
+                    border = BorderStroke(1.5.dp, NeonPurpleGlow),
+                    modifier = Modifier.width(440.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Réglage de l'application", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Décodeur Universel 4K / HDR / DTS / FFmpeg : Activé", color = Color(0xFF4ADE80), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                        HorizontalDivider(color = NeonPurple.copy(alpha = 0.4f))
+                        Text("Mise à jour automatique du contenu :", color = Color(0xFF38BDF8), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+
+                        val options = listOf(
+                            1 to "Tous les jours",
+                            2 to "Tous les 2 jours",
+                            3 to "Tous les 3 jours",
+                            0 to "Jamais"
+                        )
+                        options.forEach { (daysVal, label) ->
+                            val selected = autoUpdateDays == daysVal
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .hudFrame(active = selected, cutDp = 6f)
+                                    .clickable {
+                                        autoUpdateDays = daysVal
+                                        prefs.edit().putInt("auto_update_days", daysVal).apply()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(label, color = Color.White, fontSize = 11.5.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                                if (selected) {
+                                    Text("✓", color = Color(0xFF4ADE80), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(34.dp)
+                                .hudFrame(active = true, cutDp = 8f)
+                                .clickable { showSettingsDialog = false },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Fermer", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
 
