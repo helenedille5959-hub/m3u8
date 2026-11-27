@@ -861,6 +861,188 @@ fun formatDurationMs(ms: Long): String {
     return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%02d:%02d", m, sec)
 }
 
+data class EpisodeItem(
+    val id: String,
+    val episodeNum: Int,
+    val title: String,
+    val ext: String,
+    val duration: String,
+    val plot: String,
+    val thumb: String
+)
+
+data class SeriesDetails(
+    val title: String,
+    val poster: String,
+    val plot: String,
+    val genre: String,
+    val releaseDate: String,
+    val rating: String,
+    val cast: String,
+    val seasons: Map<Int, List<EpisodeItem>>
+)
+
+suspend fun fetchSeriesDetails(acc: PlaylistAccount, item: StreamItem): SeriesDetails = withContext(Dispatchers.IO) {
+    try {
+        val u = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=get_series_info&series_id=${item.id}"
+        val raw = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"
+        val root = JSONObject(raw)
+        val info = root.optJSONObject("info") ?: JSONObject()
+
+        val title = info.optString("name").ifBlank { item.name }
+        val poster = info.optString("cover").ifBlank { item.icon }
+        val plot = info.optString("plot").ifBlank { info.optString("description") }.ifBlank { item.plot }
+        val genre = info.optString("genre", "")
+        val releaseDate = info.optString("releaseDate").ifBlank { info.optString("releasedate", "") }
+        val rating = info.optString("rating", "")
+        val cast = info.optString("cast").ifBlank { info.optString("actors", "") }
+
+        val seasonsMap = sortedMapOf<Int, MutableList<EpisodeItem>>()
+        val episodesObj = root.optJSONObject("episodes")
+        if (episodesObj != null) {
+            val keys = episodesObj.keys()
+            while (keys.hasNext()) {
+                val seasonKey = keys.next()
+                val sNum = seasonKey.toIntOrNull() ?: 1
+                val epArr = episodesObj.optJSONArray(seasonKey) ?: JSONArray()
+                val epList = mutableListOf<EpisodeItem>()
+                for (i in 0 until epArr.length()) {
+                    val eo = epArr.getJSONObject(i)
+                    val epId = eo.optString("id")
+                    val epNum = eo.optInt("episode_num", i + 1)
+                    val epTitle = eo.optString("title").ifBlank { "Épisode $epNum" }
+                    val ext = eo.optString("container_extension", "mp4").ifBlank { "mp4" }
+                    val epInfo = eo.optJSONObject("info")
+                    val dur = epInfo?.optString("duration", "") ?: ""
+                    val epPlot = epInfo?.optString("plot", "")?.ifBlank { epInfo.optString("description", "") } ?: ""
+                    val epThumb = (epInfo?.optString("movie_image", "") ?: "")
+                        .ifBlank { epInfo?.optString("cover_big", "") ?: "" }
+                        .ifBlank { eo.optString("stream_icon", "") }
+                        .ifBlank { poster }
+                    if (epId.isNotBlank()) {
+                        epList.add(EpisodeItem(epId, epNum, epTitle, ext, dur, epPlot, epThumb))
+                    }
+                }
+                if (epList.isNotEmpty()) {
+                    seasonsMap[sNum] = epList.sortedBy { it.episodeNum }.toMutableList()
+                }
+            }
+        }
+        SeriesDetails(title, poster, plot, genre, releaseDate, rating, cast, seasonsMap)
+    } catch (_: Exception) {
+        SeriesDetails(item.name, item.icon, item.plot, "", "", "", "", emptyMap())
+    }
+}
+
+@Composable
+fun SeriesDetailScreen(
+    account: PlaylistAccount,
+    item: StreamItem,
+    isFavorite: Boolean,
+    prefs: android.content.SharedPreferences,
+    onToggleFavorite: () -> Unit,
+    onBack: () -> Unit,
+    onPlayEpisode: (String, String) -> Unit
+) {
+    var details by remember(item.id) {
+        mutableStateOf(SeriesDetails(item.name, item.icon, item.plot, "", "", "", "", emptyMap()))
+    }
+    var isLoading by remember(item.id) { mutableStateOf(true) }
+    var selectedSeason by remember(item.id) { mutableIntStateOf(1) }
+
+    LaunchedEffect(item.id) {
+        isLoading = true
+        val loaded = fetchSeriesDetails(account, item)
+        details = loaded
+        if (loaded.seasons.isNotEmpty()) selectedSeason = loaded.seasons.keys.first()
+        isLoading = false
+    }
+
+    Box(modifier = Modifier.fillMaxSize().hudFrame(active = false, cutDp = 12f).padding(12.dp)) {
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(modifier = Modifier.width(160.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().weight(1f).hudFrame(active = true, cutDp = 10f).padding(4.dp), contentAlignment = Alignment.Center) {
+                    ServerPosterImage(url = details.poster.ifBlank { item.icon }, isMovie = false)
+                }
+                Row(modifier = Modifier.fillMaxWidth().height(32.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().hudFrame(active = isFavorite, cutDp = 6f).clickable { onToggleFavorite() }, contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = if (isFavorite) Color(0xFFFACC15) else Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (isFavorite) "Favori" else "Favoris", color = if (isFavorite) Color(0xFFFACC15) else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Box(modifier = Modifier.weight(0.9f).fillMaxHeight().hudFrame(active = false, cutDp = 6f).clickable { onBack() }, contentAlignment = Alignment.Center) {
+                        Text("← Retour", color = Color(0xFF38BDF8), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(details.title, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                val metaParts = listOfNotNull(
+                    details.releaseDate.takeIf { it.isNotBlank() },
+                    details.genre.takeIf { it.isNotBlank() },
+                    details.rating.takeIf { it.isNotBlank() && it != "0" }?.let { "Note: $it" }
+                )
+                if (metaParts.isNotEmpty()) Text(metaParts.joinToString("  •  "), color = Color(0xFF38BDF8), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                if (details.plot.isNotBlank()) Text(details.plot, color = Color(0xFFE2E8F0), fontSize = 10.sp, lineHeight = 13.5.sp, maxLines = 2)
+                if (isLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(color = NeonPurpleGlow, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                            Text("Chargement des saisons et épisodes...", color = Color.Gray, fontSize = 11.sp)
+                        }
+                    }
+                } else if (details.seasons.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Aucune saison disponible sur le serveur pour cette série.", color = Color.Gray, fontSize = 11.sp)
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        items(details.seasons.keys.toList()) { sNum ->
+                            val isSelS = selectedSeason == sNum
+                            Box(modifier = Modifier.hudFrame(active = isSelS, cutDp = 6f).clickable { selectedSeason = sNum }.padding(horizontal = 12.dp, vertical = 5.dp)) {
+                                Text("Saison $sNum", color = if (isSelS) Color.White else Color.LightGray, fontSize = 10.5.sp, fontWeight = if (isSelS) FontWeight.ExtraBold else FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    val episodes = details.seasons[selectedSeason].orEmpty()
+                    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(episodes) { ep ->
+                            val epUrl = "${account.url}/series/${account.user}/${account.pass}/${ep.id}.${ep.ext}"
+                            val savedEpPos = prefs.getLong(getPositionKey(epUrl), 0L)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().hudFrame(active = false, cutDp = 7f)
+                                    .clickable { onPlayEpisode("${details.title} - S${selectedSeason}E${ep.episodeNum} : ${ep.title}", epUrl) }
+                                    .padding(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(modifier = Modifier.width(96.dp).height(56.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                                    ServerPosterImage(url = ep.thumb, isMovie = false)
+                                    Box(modifier = Modifier.size(22.dp).background(BgDark.copy(alpha = 0.75f), RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                                    }
+                                }
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Épisode ${ep.episodeNum} - ${ep.title}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            if (savedEpPos > 5000L) Text("▶ ${formatDurationMs(savedEpPos)}", color = Color(0xFF38BDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            if (ep.duration.isNotBlank()) Text(ep.duration, color = Color.Gray, fontSize = 9.sp)
+                                        }
+                                    }
+                                    if (ep.plot.isNotBlank()) Text(ep.plot, color = Color.LightGray, fontSize = 9.5.sp, lineHeight = 12.sp, maxLines = 2)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 data class VodDetails(
     val title: String,
     val poster: String,
@@ -1074,6 +1256,7 @@ fun MediaBrowserScreen(
     var selectedCategory by remember { mutableStateOf<String?>("ALL") }
     var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
     var selectedMovieDetail by remember { mutableStateOf<StreamItem?>(null) }
+    var selectedSeriesDetail by remember { mutableStateOf<StreamItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var epgInfo by remember { mutableStateOf("") }
@@ -1097,7 +1280,7 @@ fun MediaBrowserScreen(
             Text("|", color = Color(0xFF38BDF8), fontSize = 11.sp)
             listOf("LIVE" to "En direct", "MOVIES" to "Films", "SERIES" to "Séries").forEach { (mKey, label) ->
                 val sel = activeMode == mKey
-                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { selectedStream = null; selectedMovieDetail = null; epgInfo = ""; searchQuery = ""; activeMode = mKey; onSwitchMode(mKey) })
+                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { selectedStream = null; selectedMovieDetail = null; selectedSeriesDetail = null; epgInfo = ""; searchQuery = ""; activeMode = mKey; onSwitchMode(mKey) })
                 Text("|", color = NeonPurpleGlow, fontSize = 11.sp)
             }
             Box(modifier = Modifier.weight(1f)) { SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...") }
@@ -1109,7 +1292,7 @@ fun MediaBrowserScreen(
                         val isSel = selectedCategory == cat.id
                         Box(modifier = Modifier.fillMaxWidth().hudFrame(active = isSel, cutDp = 5f).clickable {
                             selectedCategory = cat.id
-                            selectedMovieDetail = null
+                            selectedMovieDetail = null; selectedSeriesDetail = null
                             if (cat.id == "FAVORITES") { favoriteItems = loadFavorites(prefs, account, activeMode); streams = favoriteItems }
                             else if (cat.id == "RESUME") { resumeItems = loadResumeList(prefs, account, activeMode); streams = resumeItems }
                             else if (cat.id == "ALL") streams = when (activeMode) { "LIVE" -> ServerCache.liveStreams; "MOVIES" -> ServerCache.movieStreams; else -> ServerCache.seriesStreams }
@@ -1120,7 +1303,27 @@ fun MediaBrowserScreen(
                     }
                 }
             }
-            if (activeMode == "MOVIES" && selectedMovieDetail != null) {
+            if (activeMode == "SERIES" && selectedSeriesDetail != null) {
+                val curSer = selectedSeriesDetail!!
+                val isFavS = favoriteItems.any { it.id == curSer.id && it.streamUrl == curSer.streamUrl }
+                SeriesDetailScreen(
+                    account = account,
+                    item = curSer,
+                    isFavorite = isFavS,
+                    prefs = prefs,
+                    onToggleFavorite = {
+                        favoriteItems = toggleFavoriteItem(prefs, account, "SERIES", curSer)
+                        if (selectedCategory == "FAVORITES") streams = favoriteItems
+                        Toast.makeText(context, if (!isFavS) "Ajouté aux favoris" else "Retiré des favoris", Toast.LENGTH_SHORT).show()
+                    },
+                    onBack = { selectedSeriesDetail = null },
+                    onPlayEpisode = { epTitle, epUrl ->
+                        recordResumeItem(prefs, account, "SERIES", curSer)
+                        resumeItems = loadResumeList(prefs, account, "SERIES")
+                        onPlayFullScreen(epTitle, epUrl)
+                    }
+                )
+            } else if (activeMode == "MOVIES" && selectedMovieDetail != null) {
                 val cur = selectedMovieDetail!!
                 val isFavM = favoriteItems.any { it.id == cur.id && it.streamUrl == cur.streamUrl }
                 MovieDetailScreen(
@@ -1133,7 +1336,7 @@ fun MediaBrowserScreen(
                         if (selectedCategory == "FAVORITES") streams = favoriteItems
                         Toast.makeText(context, if (!isFavM) "Ajouté aux favoris" else "Retiré des favoris", Toast.LENGTH_SHORT).show()
                     },
-                    onBack = { selectedMovieDetail = null },
+                    onBack = { selectedMovieDetail = null; selectedSeriesDetail = null },
                     onPlay = { t, u ->
                         recordResumeItem(prefs, account, activeMode, cur)
                         resumeItems = loadResumeList(prefs, account, activeMode)
@@ -1148,7 +1351,7 @@ fun MediaBrowserScreen(
                         LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 95.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(count = filtered.size, key = { idx -> "${activeMode}_${filtered[idx].id}_$idx" }) { idx ->
                                 val item = filtered[idx]
-                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { if (activeMode == "MOVIES") selectedMovieDetail = item else { recordResumeItem(prefs, account, activeMode, item); resumeItems = loadResumeList(prefs, account, activeMode); onPlayFullScreen(item.name, item.streamUrl) } }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { if (activeMode == "MOVIES") selectedMovieDetail = item else if (activeMode == "SERIES") selectedSeriesDetail = item else { recordResumeItem(prefs, account, activeMode, item); resumeItems = loadResumeList(prefs, account, activeMode); onPlayFullScreen(item.name, item.streamUrl) } }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     val isFav = favoriteItems.any { it.id == item.id && it.streamUrl == item.streamUrl }
                                     val savedP = prefs.getLong(getPositionKey(item.streamUrl), 0L)
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
