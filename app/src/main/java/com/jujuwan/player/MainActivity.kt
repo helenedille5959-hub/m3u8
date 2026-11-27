@@ -73,13 +73,19 @@ object ServerCache {
     var loadedForUrl: String = ""
 
     var loadedKey: String = ""
+    var isReady: Boolean = false
 
     suspend fun syncFull(
         acc: PlaylistAccount,
         onStep: (Int, String, Float) -> Unit
     ) = withContext(Dispatchers.IO) {
         val k = "${acc.url}_${acc.user}"
-        if (loadedKey == k && liveStreams.isNotEmpty()) {
+        if (loadedKey == k && isReady && liveStreams.isNotEmpty()) {
+            onStep(6, "Tout est prêt !", 1f)
+            return@withContext
+        }
+        isReady = false
+        if (false) {
             onStep(6, "Contenu prêt !", 1f)
             return@withContext
         }
@@ -173,7 +179,9 @@ object ServerCache {
         }
 
         onStep(6, "Tout est prêt !", 1f)
+        kotlinx.coroutines.delay(400)
         loadedKey = k
+        isReady = true
     }
 }
 
@@ -295,27 +303,20 @@ fun JujuWanMainApp() {
                 shape = RoundedCornerShape(16.dp),
                 color = CardDark,
                 border = BorderStroke(1.5.dp, NeonPurpleGlow),
-                modifier = Modifier.width(460.dp).padding(16.dp)
+                modifier = Modifier.width(460.dp).padding(12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(22.dp),
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         "Le contenu de votre serveur charge pour la première fois, cela va prendre un certain moment...",
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = syncProgress,
-                        color = Color(0xFF38BDF8),
-                        trackColor = Color(0xFF1E1B4B),
-                        modifier = Modifier.fillMaxWidth().height(6.dp)
-                    )
-                    Text(syncLabel, color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     val stepsList = listOf(
                         1 to "Chargement des chaînes en direct",
                         2 to "Chargement des films",
@@ -323,7 +324,7 @@ fun JujuWanMainApp() {
                         4 to "Chargement du guide EPG",
                         5 to "Chargement des jaquettes films & séries"
                     )
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         stepsList.forEach { (stNum, stTitle) ->
                             val done = syncStep > stNum
                             val active = syncStep == stNum
@@ -331,10 +332,10 @@ fun JujuWanMainApp() {
                                 if (done) {
                                     Text("✓", color = Color(0xFF38BDF8), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                                 } else if (active) {
-                                    CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                                    CircularProgressIndicator(color = Color(0xFF38BDF8), strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
                                 } else {
                                     Surface(
-                                        modifier = Modifier.size(15.dp),
+                                        modifier = Modifier.size(14.dp),
                                         shape = androidx.compose.foundation.shape.CircleShape,
                                         color = Color.Transparent,
                                         border = BorderStroke(1.dp, Color.Gray)
