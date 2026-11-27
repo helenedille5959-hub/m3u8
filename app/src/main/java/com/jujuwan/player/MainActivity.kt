@@ -891,13 +891,14 @@ fun BadgeChip(label: String) {
 @Composable
 fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     val context = LocalContext.current
+    var audioInfo by remember { mutableStateOf("Audio: Auto") }
+    var audioIndex by remember { mutableIntStateOf(0) }
+
     val exoPlayer = remember {
-        ExoPlayer.Builder(
-            context,
-            androidx.media3.exoplayer.DefaultRenderersFactory(context)
-                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                .setEnableDecoderFallback(true)
-        ).build().apply {
+        val rf = androidx.media3.exoplayer.DefaultRenderersFactory(context)
+            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setEnableDecoderFallback(true)
+        ExoPlayer.Builder(context, rf).build().apply {
             setAudioAttributes(
                 androidx.media3.common.AudioAttributes.Builder()
                     .setUsage(androidx.media3.common.C.USAGE_MEDIA)
@@ -907,6 +908,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
             )
             trackSelectionParameters = trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
+                .setPreferredAudioLanguages("fr", "fre", "fra", "en", "eng")
                 .build()
             volume = 1.0f
             setMediaItem(MediaItem.fromUri(url))
@@ -921,18 +923,45 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            factory = { PlayerView(it).apply { player = exoPlayer; useController = (url.endsWith(".m3u8") == false) } },
+            factory = { PlayerView(it).apply { player = exoPlayer; useController = !url.endsWith(".m3u8") } },
             modifier = Modifier.fillMaxSize().clipToBounds()
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopStart),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.8f))) {
-                Text("← Quitter", color = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = NeonPurple.copy(alpha = 0.85f))) {
+                    Text("← Quitter", color = Color.White)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
-            Spacer(Modifier.width(12.dp))
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Button(
+                onClick = {
+                    val audioGroups = exoPlayer.currentTracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                    if (audioGroups.isNotEmpty()) {
+                        audioIndex = (audioIndex + 1) % audioGroups.size
+                        val chosenGroup = audioGroups[audioIndex]
+                        val fmt = chosenGroup.getTrackFormat(0)
+                        val lang = fmt.language ?: "Piste ${audioIndex + 1}"
+                        val codec = fmt.sampleMimeType?.substringAfter("/")?.uppercase() ?: ""
+                        audioInfo = "Audio: $lang ($codec)"
+                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+                            .setOverrideForType(androidx.media3.common.TrackSelectionOverride(chosenGroup.mediaTrackGroup, 0))
+                            .build()
+                    } else {
+                        Toast.makeText(context, "Aucune autre piste audio détectée", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = CardDark.copy(alpha = 0.85f)),
+                border = BorderStroke(1.dp, NeonPurpleGlow)
+            ) {
+                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(audioInfo, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

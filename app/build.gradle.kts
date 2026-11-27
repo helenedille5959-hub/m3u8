@@ -30,5 +30,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.4.1+1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
