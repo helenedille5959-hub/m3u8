@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -102,17 +103,41 @@ object ServerCache {
             }
         }
 
+        fun loadArr(action: String): org.json.JSONArray {
+            return try {
+                val u = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=$action"
+                val body = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "[]"
+                org.json.JSONArray(body)
+            } catch (_: Exception) { org.json.JSONArray() }
+        }
+
         onStep(1, "Chargement des chaînes en direct...", 0.15f)
         liveCats = loadCats("get_live_categories")
-        liveStreams = fetchStreams(acc, "LIVE", "ALL")
+        val aLive = loadArr("get_live_streams")
+        liveStreams = (0 until aLive.length()).map { i ->
+            val x = aLive.getJSONObject(i)
+            val id = x.optString("stream_id")
+            StreamItem(id, x.optString("name"), "${acc.url}/live/${acc.user}/${acc.pass}/$id.ts", x.optString("stream_icon", ""), "")
+        }
 
         onStep(2, "Chargement des films...", 0.35f)
         movieCats = loadCats("get_vod_categories")
-        movieStreams = fetchStreams(acc, "MOVIES", "ALL")
+        val aVod = loadArr("get_vod_streams")
+        movieStreams = (0 until aVod.length()).map { i ->
+            val x = aVod.getJSONObject(i)
+            val id = x.optString("stream_id")
+            val ext = x.optString("container_extension", "mp4").ifBlank { "mp4" }
+            StreamItem(id, x.optString("name"), "${acc.url}/movie/${acc.user}/${acc.pass}/$id.$ext", x.optString("stream_icon", x.optString("movie_image", "")), x.optString("plot", ""))
+        }
 
         onStep(3, "Chargement des séries...", 0.55f)
         seriesCats = loadCats("get_series_categories")
-        seriesStreams = fetchStreams(acc, "SERIES", "ALL")
+        val aSer = loadArr("get_series")
+        seriesStreams = (0 until aSer.length()).map { i ->
+            val x = aSer.getJSONObject(i)
+            val id = x.optString("series_id", x.optString("stream_id"))
+            StreamItem(id, x.optString("name"), "${acc.url}/series/${acc.user}/${acc.pass}/$id.mp4", x.optString("cover", x.optString("stream_icon", "")), x.optString("plot", ""))
+        }
 
         onStep(4, "Chargement du guide EPG...", 0.62f)
         val epgTargets = liveStreams.take(30)
@@ -703,7 +728,7 @@ fun MediaBrowserScreen(
                     else {
                         val filtered = streams.filter { it.name.contains(searchQuery, true) }
                         LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 95.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(filtered.size) { idx ->
+                            items(count = filtered.size, key = { idx -> "${activeMode}_${filtered[idx].id}_$idx" }) { idx ->
                                 val item = filtered[idx]
                                 Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
@@ -838,7 +863,7 @@ fun ServerPosterImage(url: String, isMovie: Boolean) {
             loading = false
         }
     }
-    Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(5.dp)).clipToBounds(), contentAlignment = Alignment.Center) {
         if (bmp != null) {
             androidx.compose.foundation.Image(
                 bitmap = bmp!!.asImageBitmap(),
@@ -895,7 +920,7 @@ fun FullScreenVideoPlayer(title: String, url: String, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { PlayerView(it).apply { player = exoPlayer; useController = (url.endsWith(".m3u8") == false) } },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().clipToBounds()
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopStart),
