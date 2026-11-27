@@ -496,7 +496,6 @@ fun SettingsScreen(
     var selectedTab by remember { mutableStateOf("AUTO_UPDATE") }
 
     Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Colonne gauche : Onglets des réglages + Retour
         Box(
             modifier = Modifier
                 .weight(0.85f)
@@ -510,7 +509,6 @@ fun SettingsScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Paramètres", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -521,16 +519,10 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Refresh, null, tint = NeonPurpleGlow, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Mise à jour automatique",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text("Mise à jour automatique", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -547,8 +539,6 @@ fun SettingsScreen(
                 }
             }
         }
-
-        // Colonne droite : Contenu de l'onglet sélectionné
         Box(
             modifier = Modifier
                 .weight(1.65f)
@@ -561,24 +551,13 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        "Mise à jour automatique du contenu",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                    Text("Mise à jour automatique du contenu", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                     Text(
                         "Choisissez la fréquence d'actualisation automatique (calculée à chaque changement de journée à 00h00) :",
                         color = Color.LightGray,
                         fontSize = 10.5.sp
                     )
-
-                    val options = listOf(
-                        1 to "Tous les jours",
-                        2 to "Tous les 2 jours",
-                        3 to "Tous les 3 jours",
-                        0 to "Jamais"
-                    )
+                    val options = listOf(1 to "Tous les jours", 2 to "Tous les 2 jours", 3 to "Tous les 3 jours", 0 to "Jamais")
                     options.forEach { (daysVal, label) ->
                         val isSelected = autoUpdateDays == daysVal
                         Row(
@@ -590,12 +569,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                label,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
+                            Text(label, color = Color.White, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                             if (isSelected) {
                                 Text("✓ Activé", color = Color(0xFF4ADE80), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
                             }
