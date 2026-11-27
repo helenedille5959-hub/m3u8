@@ -475,7 +475,6 @@ fun JujuWanMainApp() {
             "PLAYER" -> FullScreenVideoPlayer(
                 title = playingTitle,
                 url = playingUrl,
-                onBack = { currentScreen = "HOME" }
             )
             "SETTINGS" -> SettingsScreen(
                 autoUpdateDays = autoUpdateDays,
