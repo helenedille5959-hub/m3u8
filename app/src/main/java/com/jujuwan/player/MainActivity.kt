@@ -489,6 +489,8 @@ fun JujuWanMainApp() {
     }
 }
 
+}
+
 @Composable
 fun SettingsScreen(
     autoUpdateDays: Int,
@@ -1738,4 +1740,3 @@ fun StepCheckRow(loadingText: String, doneText: String, status: Int) {
             Text("OK", color = Color(0xFF4ADE80), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
-}
