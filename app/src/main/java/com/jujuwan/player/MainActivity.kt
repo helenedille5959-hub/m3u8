@@ -492,7 +492,7 @@ fun JujuWanMainApp() {
 fun SettingsScreen(
     autoUpdateDays: Int,
     onSelectAutoUpdate: (Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf("AUTO_UPDATE") }
 
@@ -1737,3 +1737,4 @@ fun StepCheckRow(loadingText: String, doneText: String, status: Int) {
             Text("OK", color = Color(0xFF4ADE80), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
+}
