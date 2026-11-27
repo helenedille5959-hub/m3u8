@@ -487,6 +487,7 @@ fun JujuWanMainApp() {
         }
 
     }
+}
 
 @Composable
 fun SettingsScreen(
