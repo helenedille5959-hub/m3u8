@@ -676,6 +676,197 @@ fun Modifier.hudFrame(active: Boolean = false, cutDp: Float = 10f): Modifier = t
     drawLine(Color(0xFF38BDF8), Offset(w - c - tk, h - 2.dp.toPx()), Offset(w - c, h - 2.dp.toPx()), 1.5.dp.toPx())
 }
 
+data class VodDetails(
+    val title: String,
+    val poster: String,
+    val plot: String,
+    val genre: String,
+    val releaseDate: String,
+    val duration: String,
+    val rating: String,
+    val director: String,
+    val cast: String
+)
+
+suspend fun fetchVodDetails(acc: PlaylistAccount, item: StreamItem): VodDetails = withContext(Dispatchers.IO) {
+    try {
+        val u = "${acc.url}/player_api.php?username=${acc.user}&password=${acc.pass}&action=get_vod_info&vod_id=${item.id}"
+        val raw = FastHttp.client.newCall(Request.Builder().url(u).build()).execute().body?.string() ?: "{}"
+        val root = JSONObject(raw)
+        val info = root.optJSONObject("info") ?: JSONObject()
+        val movieData = root.optJSONObject("movie_data") ?: JSONObject()
+
+        val title = movieData.optString("name").ifBlank { info.optString("name", item.name) }
+        val poster = info.optString("movie_image")
+            .ifBlank { info.optString("cover_big") }
+            .ifBlank { movieData.optString("stream_icon", item.icon) }
+        val plot = info.optString("plot")
+            .ifBlank { info.optString("description") }
+            .ifBlank { item.plot }
+        val genre = info.optString("genre", "")
+        val releaseDate = info.optString("releasedate").ifBlank { info.optString("releaseDate", "") }
+        val duration = info.optString("duration", "")
+        val rating = info.optString("rating", "")
+        val director = info.optString("director", "")
+        val cast = info.optString("cast").ifBlank { info.optString("actors", "") }
+
+        VodDetails(title, poster, plot, genre, releaseDate, duration, rating, director, cast)
+    } catch (_: Exception) {
+        VodDetails(item.name, item.icon, item.plot, "", "", "", "", "", "")
+    }
+}
+
+@Composable
+fun MovieDetailScreen(
+    account: PlaylistAccount,
+    item: StreamItem,
+    onBack: () -> Unit,
+    onPlay: (String, String) -> Unit
+) {
+    var details by remember(item.id) {
+        mutableStateOf(VodDetails(item.name, item.icon, item.plot, "", "", "", "", "", ""))
+    }
+    var isLoading by remember(item.id) { mutableStateOf(true) }
+
+    LaunchedEffect(item.id) {
+        isLoading = true
+        details = fetchVodDetails(account, item)
+        isLoading = false
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .hudFrame(active = false, cutDp = 12f)
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(190.dp)
+                    .fillMaxHeight()
+                    .hudFrame(active = true, cutDp = 10f)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ServerPosterImage(url = details.poster.ifBlank { item.icon }, isMovie = true)
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = details.title,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+
+                    val metaParts = listOfNotNull(
+                        details.releaseDate.takeIf { it.isNotBlank() },
+                        details.duration.takeIf { it.isNotBlank() },
+                        details.genre.takeIf { it.isNotBlank() },
+                        details.rating.takeIf { it.isNotBlank() && it != "0" }?.let { "Note: $it" }
+                    )
+                    if (metaParts.isNotEmpty()) {
+                        Text(
+                            text = metaParts.joinToString("  •  "),
+                            color = Color(0xFF38BDF8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (details.director.isNotBlank()) {
+                        Text(
+                            text = "Réalisateur : ${details.director}",
+                            color = Color.LightGray,
+                            fontSize = 10.5.sp
+                        )
+                    }
+
+                    if (details.cast.isNotBlank()) {
+                        Text(
+                            text = "Casting : ${details.cast}",
+                            color = Color.LightGray,
+                            fontSize = 10.5.sp,
+                            maxLines = 2
+                        )
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    if (isLoading && details.plot.isBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(color = NeonPurpleGlow, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            Text("Chargement des informations du serveur...", color = Color.Gray, fontSize = 11.sp)
+                        }
+                    } else {
+                        Text(
+                            text = details.plot.ifBlank { "Aucun descriptif fourni par le serveur pour ce film." },
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1.4f)
+                            .fillMaxHeight()
+                            .hudFrame(active = true, cutDp = 8f)
+                            .clickable { onPlay(details.title, item.streamUrl) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Lancer le film", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(0.8f)
+                            .fillMaxHeight()
+                            .hudFrame(active = false, cutDp = 8f)
+                            .clickable { onBack() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Retour", color = Color(0xFF38BDF8), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun MediaBrowserScreen(
     mode: String,
@@ -690,6 +881,7 @@ fun MediaBrowserScreen(
     var streams by remember { mutableStateOf<List<StreamItem>>(emptyList()) }
     var selectedCategory by remember { mutableStateOf<String?>("ALL") }
     var selectedStream by remember { mutableStateOf<StreamItem?>(null) }
+    var selectedMovieDetail by remember { mutableStateOf<StreamItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var epgInfo by remember { mutableStateOf("") }
@@ -710,7 +902,7 @@ fun MediaBrowserScreen(
             Text("|", color = Color(0xFF38BDF8), fontSize = 11.sp)
             listOf("LIVE" to "En direct", "MOVIES" to "Films", "SERIES" to "Séries").forEach { (mKey, label) ->
                 val sel = activeMode == mKey
-                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { selectedStream = null; epgInfo = ""; searchQuery = ""; activeMode = mKey; onSwitchMode(mKey) })
+                Text(label, color = if (sel) Color(0xFF38BDF8) else Color.White, fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, modifier = Modifier.clickable { selectedStream = null; selectedMovieDetail = null; epgInfo = ""; searchQuery = ""; activeMode = mKey; onSwitchMode(mKey) })
                 Text("|", color = NeonPurpleGlow, fontSize = 11.sp)
             }
             Box(modifier = Modifier.weight(1f)) { SlimInputBox(searchQuery, { searchQuery = it }, "Rechercher...") }
@@ -730,7 +922,14 @@ fun MediaBrowserScreen(
                     }
                 }
             }
-            if (activeMode != "LIVE") {
+            if (activeMode == "MOVIES" && selectedMovieDetail != null) {
+                MovieDetailScreen(
+                    account = account,
+                    item = selectedMovieDetail!!,
+                    onBack = { selectedMovieDetail = null },
+                    onPlay = { t, u -> onPlayFullScreen(t, u) }
+                )
+            } else if (activeMode != "LIVE") {
                 Box(modifier = Modifier.weight(2.8f).fillMaxHeight().hudFrame(active = false, cutDp = 12f).padding(8.dp)) {
                     if (isLoading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = NeonPurpleGlow) }
                     else {
@@ -738,7 +937,7 @@ fun MediaBrowserScreen(
                         LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 95.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(count = filtered.size, key = { idx -> "${activeMode}_${filtered[idx].id}_$idx" }) { idx ->
                                 val item = filtered[idx]
-                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(modifier = Modifier.hudFrame(active = false, cutDp = 7f).clickable { if (activeMode == "MOVIES") selectedMovieDetail = item else onPlayFullScreen(item.name, item.streamUrl) }.padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(modifier = Modifier.fillMaxWidth().height(115.dp).background(BgDark, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
                                         ServerPosterImage(url = item.icon, isMovie = (activeMode == "MOVIES"))
                                     }
