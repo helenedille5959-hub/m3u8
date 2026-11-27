@@ -75,10 +75,48 @@ object ServerCache {
     var loadedKey: String = ""
     var isReady: Boolean = false
 
-    suspend fun syncFull(
-        acc: PlaylistAccount,
-        onStep: (Int, String, Float) -> Unit
-    ) = withContext(Dispatchers.IO) {
+    private fun cacheFile(context: Context, acc: PlaylistAccount): java.io.File {
+        val safe = "${acc.url}_${acc.user}".hashCode().toString()
+        return java.io.File(context.filesDir, "server_cache_$safe.json")
+    }
+
+    fun tryLoadFromDisk(context: Context, acc: PlaylistAccount): Boolean {
+        return try {
+            val f = cacheFile(context, acc)
+            if (!f.exists()) return false
+            val root = JSONObject(f.readText())
+            fun parseCats(arr: JSONArray): List<CategoryItem> =
+                (0 until arr.length()).map { i -> val o = arr.getJSONObject(i); CategoryItem(o.optString("id"), o.optString("name")) }
+            fun parseStreams(arr: JSONArray): List<StreamItem> =
+                (0 until arr.length()).map { i -> val o = arr.getJSONObject(i); StreamItem(o.optString("id"), o.optString("name"), o.optString("streamUrl"), o.optString("icon", ""), o.optString("plot", "")) }
+            val lCats = parseCats(root.getJSONArray("liveCats")); val lStreams = parseStreams(root.getJSONArray("liveStreams"))
+            val mCats = parseCats(root.getJSONArray("movieCats")); val mStreams = parseStreams(root.getJSONArray("movieStreams"))
+            val sCats = parseCats(root.getJSONArray("seriesCats")); val sStreams = parseStreams(root.getJSONArray("seriesStreams"))
+            if (lStreams.isEmpty() && mStreams.isEmpty() && sStreams.isEmpty()) return false
+            liveCats = lCats; liveStreams = lStreams; movieCats = mCats; movieStreams = mStreams; seriesCats = sCats; seriesStreams = sStreams
+            val k = "${acc.url}_${acc.user}"; loadedKey = k; loadedForUrl = k; isReady = true; true
+        } catch (_: Exception) { false }
+    }
+
+    private fun saveToDisk(context: Context, acc: PlaylistAccount) {
+        try {
+            fun catsToJson(list: List<CategoryItem>) = JSONArray().apply { list.forEach { put(JSONObject().apply { put("id", it.id); put("name", it.name) }) } }
+            fun streamsToJson(list: List<StreamItem>) = JSONArray().apply { list.forEach { put(JSONObject().apply { put("id", it.id); put("name", it.name); put("streamUrl", it.streamUrl); put("icon", it.icon); put("plot", it.plot) }) } }
+            val root = JSONObject().apply {
+                put("liveCats", catsToJson(liveCats)); put("liveStreams", streamsToJson(liveStreams))
+                put("movieCats", catsToJson(movieCats)); put("movieStreams", streamsToJson(movieStreams))
+                put("seriesCats", catsToJson(seriesCats)); put("seriesStreams", streamsToJson(seriesStreams))
+            }
+            cacheFile(context, acc).writeText(root.toString())
+        } catch (_: Exception) {}
+    }
+
+    fun clearDiskCache(context: Context, acc: PlaylistAccount) {
+        try { cacheFile(context, acc).delete() } catch (_: Exception) {}
+        isReady = false; loadedKey = ""; loadedForUrl = ""
+    }
+
+    suspend fun syncFull(context: Context, acc: PlaylistAccount, onStep: (Int, String, Float) -> Unit) = withContext(Dispatchers.IO) {
         val k = "${acc.url}_${acc.user}"
         if (loadedKey == k && isReady && liveStreams.isNotEmpty()) {
             onStep(6, "Tout est prêt !", 1f)
@@ -181,7 +219,9 @@ object ServerCache {
         onStep(6, "Tout est prêt !", 1f)
         kotlinx.coroutines.delay(1500)
         loadedKey = k
+        loadedForUrl = k
         isReady = true
+        saveToDisk(context, acc)
     }
 }
 
@@ -268,19 +308,23 @@ fun JujuWanMainApp() {
         var syncStep by remember { mutableStateOf(1) }
         var syncLabel by remember { mutableStateOf("Chargement des chaînes en direct...") }
         var syncProgress by remember { mutableStateOf(0.1f) }
+        var refreshTrigger by remember { mutableIntStateOf(0) }
 
-        LaunchedEffect(activeAccount) {
+        LaunchedEffect(activeAccount, refreshTrigger) {
             val acc = activeAccount
-            if (acc != null && (!ServerCache.isReady || ServerCache.loadedKey != "${acc.url}_${acc.user}")) {
-                isPreloading = true
-                syncStep = 1
-                ServerCache.syncFull(acc) { step, label, progress ->
-                    syncStep = step
-                    syncLabel = label
-                    syncProgress = progress
+            if (acc != null) {
+                val alreadyLoaded = (refreshTrigger == 0) && (
+                    (ServerCache.isReady && ServerCache.loadedKey == "${acc.url}_${acc.user}") ||
+                    ServerCache.tryLoadFromDisk(context, acc)
+                )
+                if (!alreadyLoaded) {
+                    isPreloading = true
+                    syncStep = 1
+                    ServerCache.syncFull(context, acc) { step, label, progress ->
+                        syncStep = step; syncLabel = label; syncProgress = progress
+                    }
+                    isPreloading = false
                 }
-                ServerCache.loadedForUrl = "${acc.url}_${acc.user}"
-                isPreloading = false
             }
         }
 
@@ -371,6 +415,10 @@ fun JujuWanMainApp() {
                     }
                 },
                 onOpenPlaylists = { currentScreen = "PLAYLISTS" },
+                onRefreshContent = {
+                    activeAccount?.let { acc -> ServerCache.clearDiskCache(context, acc); refreshTrigger++ }
+                        ?: Toast.makeText(context, "Ajoutez d'abord une playlist serveur", Toast.LENGTH_SHORT).show()
+                },
                 onOpenSettings = { Toast.makeText(context, "Décodeur Universel 4K/HDR/DTS Activé", Toast.LENGTH_SHORT).show() }
             )
 
@@ -413,7 +461,7 @@ fun JujuWanMainApp() {
 }
 
 @Composable
-fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit, onOpenSettings: () -> Unit) {
+fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit, onRefreshContent: () -> Unit, onOpenSettings: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().drawBehind {
         val w = size.width; val h = size.height; val c = 14.dp.toPx()
         val fr = Path().apply { moveTo(c, 0f); lineTo(w - c, 0f); lineTo(w, c); lineTo(w, h - c); lineTo(w - c, h); lineTo(c, h); lineTo(0f, h - c); lineTo(0f, c); close() }
@@ -424,8 +472,9 @@ fun HomeDashboard(onOpenCategory: (String) -> Unit, onOpenPlaylists: () -> Unit,
             NeonMainCard("Films", Icons.Default.Movie, Modifier.weight(1f)) { onOpenCategory("MOVIES") }
             NeonMainCard("Séries", Icons.Default.VideoLibrary, Modifier.weight(1f)) { onOpenCategory("SERIES") }
         }
-        Row(modifier = Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             NeonBottomButton("Changer de playlist de serveur", Icons.Default.Dns, Modifier.weight(1f), onOpenPlaylists)
+            NeonBottomButton("Actualiser le contenu du serveur", Icons.Default.Refresh, Modifier.weight(1.1f), onRefreshContent)
             NeonBottomButton("Réglage de l'application", Icons.Default.Settings, Modifier.weight(1f), onOpenSettings)
         }
     }
